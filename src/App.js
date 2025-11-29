@@ -53,7 +53,7 @@ const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- CONSTANTS ---
-const ADMIN_PIN = "12345"; 
+const ADMIN_PIN = "041412"; 
 const APP_NAME = "KishDBSoria Dropping Area"; 
 
 // LA UNION TOWNS LIST
