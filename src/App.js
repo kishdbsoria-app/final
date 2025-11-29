@@ -414,9 +414,9 @@ export default function App() {
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full relative overflow-hidden">
           
           <div className="text-center mb-8">
-            <div className="bg-pink-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
-              <HeartHandshake className="text-pink-600 w-10 h-10" />
-            </div>
+            <div className="mx-auto mb-6 flex justify-center">
+  <img src="/logo.png" alt="KishDBSoria Logo" className="h-24 w-auto object-contain" />
+</div>
             <h1 className="text-2xl font-bold text-slate-800">{APP_NAME}</h1>
             <p className="text-pink-500 font-medium">Logistics & Tracking</p>
           </div>
