@@ -35,7 +35,7 @@ import {
   History,
   AlertCircle,
   HeartHandshake,
-  Pencil // Added Pencil Icon for Edit
+  Pencil
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -113,7 +113,8 @@ export default function App() {
   const [newItemItem, setNewItemItem] = useState('');
   const [newItemBuyer, setNewItemBuyer] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
-  const [newItemLocation, setNewItemLocation] = useState('SFC'); // Default to SFC
+  const [newItemTransferFee, setNewItemTransferFee] = useState(''); // NEW: Transfer Fee
+  const [newItemLocation, setNewItemLocation] = useState('SFC');
 
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
@@ -263,15 +264,16 @@ export default function App() {
         sellerName: userName, 
         location: newItemLocation,
         price: newItemPrice || '0',
+        transferFee: newItemTransferFee || '0', // NEW: Save Transfer Fee
         status: 'dropped',
-        isPaidExternally: false, // Default: Not paid externally
+        isPaidExternally: false, 
         createdAt: serverTimestamp()
       });
       
       setNewItemItem('');
       setNewItemBuyer('');
       setNewItemPrice('');
-      // Keep previous location selected for faster entry of multiple items
+      setNewItemTransferFee(''); // Reset Fee
       setIsFormOpen(false);
     } catch (error) {
       console.error("Error adding item:", error);
@@ -292,7 +294,8 @@ export default function App() {
   // --- Edit Logic (For Admin) ---
 
   const handleEditClick = (item) => {
-    setEditingItem({ ...item }); // Create copy
+    // Ensure transferFee exists in the object even if it wasn't there before
+    setEditingItem({ transferFee: '0', ...item }); 
     setIsEditModalOpen(true);
   };
 
@@ -306,6 +309,7 @@ export default function App() {
         itemName: editingItem.itemName,
         buyerName: editingItem.buyerName,
         price: editingItem.price,
+        transferFee: editingItem.transferFee, // NEW: Update Fee
         location: editingItem.location,
         isPaidExternally: editingItem.isPaidExternally || false
       });
@@ -323,7 +327,6 @@ export default function App() {
     
     const groups = {};
     items.forEach(item => {
-      // Only include items that are 'claimed' and NOT marked as 'isPaidExternally'
       if (item.status === 'claimed') {
         const seller = item.sellerName || 'Unknown';
         if (!groups[seller]) {
@@ -331,9 +334,11 @@ export default function App() {
         }
         groups[seller].items.push(item);
         
-        // Only add to total if NOT paid externally
         if (!item.isPaidExternally) {
           const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+          // Note: Currently we are NOT subtracting the transfer fee from the total automatically.
+          // Usually Transfer Fee is a service charge added on top or deducted. 
+          // Keeping the logic simple (Total = Sum of Prices) until requested otherwise.
           groups[seller].total += price;
         }
       }
@@ -721,8 +726,14 @@ export default function App() {
                     <div className="text-sm font-medium text-slate-800">{item.itemName}</div>
                     {/* Price Logic: Hide for buyers, show 'Paid Externally' style if needed */}
                     {role !== 'buyer' && (
-                      <div className={`text-xs ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-slate-500'}`}>
-                        {item.isPaidExternally ? `(${item.price})` : `Price: ${item.price}`}
+                      <div>
+                        <div className={`text-xs ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-slate-500'}`}>
+                          {item.isPaidExternally ? `(${item.price})` : `Price: ${item.price}`}
+                        </div>
+                        {/* Display Transfer Fee if it exists */}
+                        {item.transferFee && item.transferFee !== '0' && (
+                          <div className="text-xs text-pink-500">Fee: {item.transferFee}</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -810,9 +821,15 @@ export default function App() {
 
                        {/* HIDE PRICE FROM BUYER IN MOBILE VIEW */}
                        {role !== 'buyer' && (
-                          <span className={`text-sm font-semibold mr-2 ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>
-                            {item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}
-                          </span>
+                          <div className="text-right mr-2">
+                            <span className={`text-sm font-semibold ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>
+                              {item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}
+                            </span>
+                            {/* Mobile Fee Display */}
+                            {item.transferFee && item.transferFee !== '0' && (
+                              <div className="text-[10px] text-pink-500">Fee: {item.transferFee}</div>
+                            )}
+                          </div>
                        )}
                        {item.status === 'dropped' && role === 'admin' && (
                          <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
@@ -867,18 +884,22 @@ export default function App() {
                     <input type="text" placeholder="e.g. 500" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                    {/* UPDATED: LOCATION DROPDOWN */}
-                    <select 
-                      value={newItemLocation}
-                      onChange={(e) => setNewItemLocation(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white"
-                    >
-                      {LU_TOWNS.map(town => (
-                        <option key={town} value={town}>{town}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    {/* NEW: TRANSFER FEE INPUT */}
+                    <input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
                   </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                <select 
+                  value={newItemLocation}
+                  onChange={(e) => setNewItemLocation(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white"
+                >
+                  {LU_TOWNS.map(town => (
+                    <option key={town} value={town}>{town}</option>
+                  ))}
+                </select>
               </div>
               <button type="submit" className="w-full py-3 bg-pink-600 text-white rounded-lg font-semibold hover:bg-pink-700 shadow-md shadow-pink-200">Confirm Drop</button>
             </form>
@@ -924,17 +945,27 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                    <select 
-                      value={editingItem.location || 'SFC'}
-                      onChange={(e) => setEditingItem({...editingItem, location: e.target.value})}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
-                    >
-                      {LU_TOWNS.map(town => (
-                        <option key={town} value={town}>{town}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    {/* NEW: EDIT TRANSFER FEE */}
+                    <input 
+                      type="text" 
+                      value={editingItem.transferFee || '0'} 
+                      onChange={(e) => setEditingItem({...editingItem, transferFee: e.target.value})} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                    />
                   </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                <select 
+                  value={editingItem.location || 'SFC'}
+                  onChange={(e) => setEditingItem({...editingItem, location: e.target.value})}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
+                >
+                  {LU_TOWNS.map(town => (
+                    <option key={town} value={town}>{town}</option>
+                  ))}
+                </select>
               </div>
 
               {/* NEW: MARK AS PAID EXTERNALLY */}
