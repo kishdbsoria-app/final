@@ -13,7 +13,7 @@ import {
   updateDoc, 
   doc, 
   getDoc,
-  deleteDoc, // Added deleteDoc
+  deleteDoc, 
   setDoc,
   onSnapshot, 
   serverTimestamp, 
@@ -25,7 +25,7 @@ import {
   Plus, 
   CheckCircle2, 
   User, 
-  Users, // Added Users Icon
+  Users, 
   ShoppingBag, 
   LogOut, 
   MapPin,
@@ -39,9 +39,10 @@ import {
   HeartHandshake,
   Pencil,
   CalendarCheck,
-  KeyRound, // Added Key Icon
-  Trash2, // Added Trash Icon
-  UserPlus // Added UserPlus Icon
+  KeyRound, 
+  Trash2, 
+  UserPlus,
+  RotateCcw // Added Undo Icon
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -94,7 +95,7 @@ export default function App() {
   
   // Data State
   const [items, setItems] = useState([]);
-  const [sellerList, setSellerList] = useState([]); // New state for managing users
+  const [sellerList, setSellerList] = useState([]); 
   const [loading, setLoading] = useState(true);
   
   // UI State
@@ -107,7 +108,7 @@ export default function App() {
   const [editingItem, setEditingItem] = useState(null);
 
   const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
-  const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); // New User Mgmt Modal
+  const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); 
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Login UI State
@@ -115,8 +116,7 @@ export default function App() {
   const [loginInputName, setLoginInputName] = useState('');
   const [loginInputPass, setLoginInputPass] = useState('');
   const [loginError, setLoginError] = useState('');
-  // REMOVED: isRegistering state (Registration is now Admin-only)
-
+  
   // Admin Add User State
   const [newSellerName, setNewSellerName] = useState('');
   const [newSellerPass, setNewSellerPass] = useState('');
@@ -127,6 +127,7 @@ export default function App() {
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemTransferFee, setNewItemTransferFee] = useState(''); 
   const [newItemLocation, setNewItemLocation] = useState('SFC');
+  const [newItemSeller, setNewItemSeller] = useState(''); // NEW: For Admin to select seller
 
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
@@ -181,20 +182,24 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // NEW: Fetch Sellers list for Admin User Management
+  // NEW: Fetch Sellers list for Dropdown AND Admin User Management
   useEffect(() => {
-    if (isUserMgmtOpen && role === 'admin') {
+    // We now fetch this if role is 'admin', regardless of modal state, 
+    // so the dropdown in "New Drop" works immediately.
+    if (role === 'admin') {
        const sellersRef = collection(db, 'artifacts', appId, 'public', 'data', 'sellers');
        const unsubscribe = onSnapshot(sellersRef, (snapshot) => {
           const users = snapshot.docs.map(doc => ({
              id: doc.id,
              ...doc.data()
           }));
+          // Sort alphabetically
+          users.sort((a, b) => a.displayName.localeCompare(b.displayName));
           setSellerList(users);
        });
        return () => unsubscribe();
     }
-  }, [isUserMgmtOpen, role]);
+  }, [role]);
 
   // --- Login Handlers ---
 
@@ -218,7 +223,6 @@ export default function App() {
     try {
       const userSnap = await getDoc(userRef);
       
-      // STRICT LOGIN ONLY (No Registration)
       if (userSnap.exists()) {
         const userData = userSnap.data();
         if (userData.password === loginInputPass) {
@@ -267,12 +271,20 @@ export default function App() {
     e.preventDefault();
     if (!newItemItem || !newItemBuyer) return;
 
+    // Use selected seller if admin, otherwise use logged-in user (though sellers can't see this form anymore)
+    const actualSeller = role === 'admin' ? newItemSeller : userName;
+
+    if (!actualSeller) {
+        alert("Please select a Seller.");
+        return;
+    }
+
     try {
       const itemsRef = collection(db, 'artifacts', appId, 'public', 'data', 'dropping_items');
       await addDoc(itemsRef, {
         itemName: newItemItem,
         buyerName: newItemBuyer,
-        sellerName: userName, 
+        sellerName: actualSeller, // Use the selected seller
         location: newItemLocation,
         price: newItemPrice || '0',
         transferFee: newItemTransferFee || '0', 
@@ -285,6 +297,7 @@ export default function App() {
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
+      // Do NOT reset seller or location to allow fast entry
       setIsFormOpen(false);
     } catch (error) {
       console.error("Error adding item:", error);
@@ -300,7 +313,7 @@ export default function App() {
       if (newStatus === 'claimed') {
         updates.claimedAt = serverTimestamp();
       } else if (newStatus === 'dropped') {
-        updates.claimedAt = null;
+        updates.claimedAt = null; // Remove claimed date if undoing
       }
 
       await updateDoc(itemRef, updates);
@@ -316,7 +329,6 @@ export default function App() {
     e.preventDefault();
     if (!newSellerName || !newSellerPass) return;
 
-    // Same safeId logic as login
     const safeId = newSellerName.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
     const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'sellers', safeId);
 
@@ -667,7 +679,7 @@ export default function App() {
               <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
               <div>
                 <h1 className="text-xl font-bold text-slate-800 hidden sm:block">{APP_NAME}</h1>
-                <h1 className="text-xl font-bold text-slate-800 sm:hidden">KishDBSoria</h1>
+                <h1 className="text-xl font-bold text-slate-800 sm:hidden">KishDBSoria App</h1>
                 <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
                         role === 'admin' ? 'bg-purple-800 text-white' :
@@ -739,20 +751,21 @@ export default function App() {
               <div className="text-2xl font-bold text-purple-600">{stats.claimed}</div>
             </div>
             
-            <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
-              <div>
-                <div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div>
-                <div className="text-xs text-pink-600">Add package</div>
-              </div>
-              {(role === 'seller' || role === 'admin') && (
+            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
+            {role === 'admin' && (
+              <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
+                <div>
+                  <div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div>
+                  <div className="text-xs text-pink-600">Add package</div>
+                </div>
                 <button 
                   onClick={() => setIsFormOpen(true)}
                   className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -865,6 +878,16 @@ export default function App() {
                             <CalendarCheck className="w-3 h-3" /> {item.claimedAt.toLocaleDateString()}
                           </span>
                         )}
+                        {/* UNDO BUTTON: ADMIN ONLY */}
+                        {role === 'admin' && (
+                           <button 
+                             onClick={() => handleStatusChange(item.id, 'dropped')}
+                             className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1"
+                             title="Undo / Revert to Ready"
+                           >
+                             <RotateCcw className="w-3 h-3" /> Undo
+                           </button>
+                        )}
                       </div>
                     ) : item.status === 'cashed_out' ? (
                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Cashed Out</span>
@@ -889,6 +912,15 @@ export default function App() {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
                         {item.claimedAt && (
                           <div className="text-[10px] text-slate-400 mt-1">{item.claimedAt.toLocaleDateString()}</div>
+                        )}
+                        {/* UNDO BUTTON: ADMIN ONLY (MOBILE) */}
+                        {role === 'admin' && (
+                           <button 
+                             onClick={() => handleStatusChange(item.id, 'dropped')}
+                             className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"
+                           >
+                             <RotateCcw className="w-3 h-3" /> Undo
+                           </button>
                         )}
                       </div>
                     ) : item.status === 'cashed_out' ? (
@@ -964,6 +996,22 @@ export default function App() {
               <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
             <form onSubmit={handleAddItem} className="space-y-4">
+              
+              {/* NEW: SELLER SELECTION (ADMIN ONLY) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Select Seller</label>
+                <select 
+                  value={newItemSeller}
+                  onChange={(e) => setNewItemSeller(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white"
+                >
+                  <option value="">-- Choose Seller --</option>
+                  {sellerList.map(seller => (
+                    <option key={seller.id} value={seller.displayName}>{seller.displayName}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label>
                 <input required type="text" placeholder="e.g. White Dress" value={newItemItem} onChange={(e) => setNewItemItem(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
@@ -979,7 +1027,6 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
-                    {/* NEW: TRANSFER FEE INPUT */}
                     <input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
                   </div>
               </div>
@@ -1040,7 +1087,6 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
-                    {/* NEW: EDIT TRANSFER FEE */}
                     <input 
                       type="text" 
                       value={editingItem.transferFee || '0'} 
