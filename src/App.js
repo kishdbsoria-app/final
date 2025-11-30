@@ -653,7 +653,7 @@ export default function App() {
               <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
               <div>
                 <h1 className="text-xl font-bold text-slate-800 hidden sm:block">{APP_NAME}</h1>
-                <h1 className="text-xl font-bold text-slate-800 sm:hidden">KDS Dropping</h1>
+                <h1 className="text-xl font-bold text-slate-800 sm:hidden">KishDBSoria</h1>
                 <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
                         role === 'admin' ? 'bg-purple-800 text-white' :
