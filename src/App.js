@@ -35,7 +35,8 @@ import {
   History,
   AlertCircle,
   HeartHandshake,
-  Pencil
+  Pencil,
+  CalendarCheck // Added Calendar Icon for Claimed Date
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -113,7 +114,7 @@ export default function App() {
   const [newItemItem, setNewItemItem] = useState('');
   const [newItemBuyer, setNewItemBuyer] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
-  const [newItemTransferFee, setNewItemTransferFee] = useState(''); // NEW: Transfer Fee
+  const [newItemTransferFee, setNewItemTransferFee] = useState(''); 
   const [newItemLocation, setNewItemLocation] = useState('SFC');
 
   // Cash Out Selection State (For Admin)
@@ -155,7 +156,9 @@ export default function App() {
       const loadedItems = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        // NEW: Parse claimedAt if it exists
+        claimedAt: doc.data().claimedAt?.toDate() || null
       }));
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
@@ -264,7 +267,7 @@ export default function App() {
         sellerName: userName, 
         location: newItemLocation,
         price: newItemPrice || '0',
-        transferFee: newItemTransferFee || '0', // NEW: Save Transfer Fee
+        transferFee: newItemTransferFee || '0', 
         status: 'dropped',
         isPaidExternally: false, 
         createdAt: serverTimestamp()
@@ -273,7 +276,7 @@ export default function App() {
       setNewItemItem('');
       setNewItemBuyer('');
       setNewItemPrice('');
-      setNewItemTransferFee(''); // Reset Fee
+      setNewItemTransferFee(''); 
       setIsFormOpen(false);
     } catch (error) {
       console.error("Error adding item:", error);
@@ -284,7 +287,20 @@ export default function App() {
   const handleStatusChange = async (itemId, newStatus) => {
     try {
       const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', itemId);
-      await updateDoc(itemRef, { status: newStatus });
+      
+      // NEW: Prepare updates object
+      const updates = { status: newStatus };
+      
+      // If marking as claimed, stamp the date
+      if (newStatus === 'claimed') {
+        updates.claimedAt = serverTimestamp();
+      } 
+      // If reverting to dropped, remove the claim date (set to null)
+      else if (newStatus === 'dropped') {
+        updates.claimedAt = null;
+      }
+
+      await updateDoc(itemRef, updates);
     } catch (error) {
       console.error("Error updating status:", error);
       alert("Error updating status: " + error.message);
@@ -294,7 +310,6 @@ export default function App() {
   // --- Edit Logic (For Admin) ---
 
   const handleEditClick = (item) => {
-    // Ensure transferFee exists in the object even if it wasn't there before
     setEditingItem({ transferFee: '0', ...item }); 
     setIsEditModalOpen(true);
   };
@@ -309,7 +324,7 @@ export default function App() {
         itemName: editingItem.itemName,
         buyerName: editingItem.buyerName,
         price: editingItem.price,
-        transferFee: editingItem.transferFee, // NEW: Update Fee
+        transferFee: editingItem.transferFee,
         location: editingItem.location,
         isPaidExternally: editingItem.isPaidExternally || false
       });
@@ -336,9 +351,6 @@ export default function App() {
         
         if (!item.isPaidExternally) {
           const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
-          // Note: Currently we are NOT subtracting the transfer fee from the total automatically.
-          // Usually Transfer Fee is a service charge added on top or deducted. 
-          // Keeping the logic simple (Total = Sum of Prices) until requested otherwise.
           groups[seller].total += price;
         }
       }
@@ -777,7 +789,15 @@ export default function App() {
                         )}
                       </>
                     ) : item.status === 'claimed' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
+                      // DESKTOP: Display Claimed Date
+                      <div className="flex flex-col items-end">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
+                        {item.claimedAt && (
+                          <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                            <CalendarCheck className="w-3 h-3" /> {item.claimedAt.toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     ) : item.status === 'cashed_out' ? (
                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Cashed Out</span>
                     ) : (
@@ -796,7 +816,13 @@ export default function App() {
                     {item.status === 'dropped' ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
                     ) : item.status === 'claimed' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
+                      // MOBILE: Display Claimed Date
+                      <div className="text-right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
+                        {item.claimedAt && (
+                          <div className="text-[10px] text-slate-400 mt-1">{item.claimedAt.toLocaleDateString()}</div>
+                        )}
+                      </div>
                     ) : item.status === 'cashed_out' ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>
                     ) : (
