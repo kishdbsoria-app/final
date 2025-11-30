@@ -34,7 +34,8 @@ import {
   ChevronRight,
   History,
   AlertCircle,
-  HeartHandshake
+  HeartHandshake,
+  Pencil // Added Pencil Icon for Edit
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -46,14 +47,15 @@ const firebaseConfig = {
   messagingSenderId: "1076257263660",
   appId: "1:1076257263660:web:281a74984c9e3fcd294189",
   measurementId: "G-D8VGN6W3B3"
-};
+}; 
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- CONSTANTS ---
-const ADMIN_PIN = "041412"; 
+const ADMIN_PIN = "12345"; 
 const APP_NAME = "KishDBSoria Dropping Area"; 
 
 // LA UNION TOWNS LIST
@@ -92,6 +94,11 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  
+  // EDIT MODAL STATE
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+
   const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -183,7 +190,6 @@ export default function App() {
       const userSnap = await getDoc(userRef);
       
       if (isRegistering) {
-        // --- REGISTER MODE ---
         if (userSnap.exists()) {
           setLoginError('Shop name already exists. Please login instead.');
         } else {
@@ -196,7 +202,6 @@ export default function App() {
           completeLogin('seller', loginInputName);
         }
       } else {
-        // --- LOGIN MODE ---
         if (userSnap.exists()) {
           const userData = userSnap.data();
           if (userData.password === loginInputPass) {
@@ -210,7 +215,6 @@ export default function App() {
       }
     } catch (err) {
       console.error("Auth Error:", err);
-      // UPDATED: Better error handling to help diagnostics
       if (err.code === 'permission-denied') {
          setLoginError('Database Permission Denied. Please check Firestore Rules.');
       } else {
@@ -260,6 +264,7 @@ export default function App() {
         location: newItemLocation,
         price: newItemPrice || '0',
         status: 'dropped',
+        isPaidExternally: false, // Default: Not paid externally
         createdAt: serverTimestamp()
       });
       
@@ -284,6 +289,33 @@ export default function App() {
     }
   };
 
+  // --- Edit Logic (For Admin) ---
+
+  const handleEditClick = (item) => {
+    setEditingItem({ ...item }); // Create copy
+    setIsEditModalOpen(true);
+  };
+
+  const handleUpdateItem = async (e) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    try {
+      const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', editingItem.id);
+      await updateDoc(itemRef, {
+        itemName: editingItem.itemName,
+        buyerName: editingItem.buyerName,
+        price: editingItem.price,
+        location: editingItem.location,
+        isPaidExternally: editingItem.isPaidExternally || false
+      });
+      setIsEditModalOpen(false);
+      setEditingItem(null);
+    } catch (error) {
+      alert("Error updating item: " + error.message);
+    }
+  };
+
   // --- Admin Cash Out Logic ---
 
   const sellersWithBalance = useMemo(() => {
@@ -291,14 +323,19 @@ export default function App() {
     
     const groups = {};
     items.forEach(item => {
+      // Only include items that are 'claimed' and NOT marked as 'isPaidExternally'
       if (item.status === 'claimed') {
         const seller = item.sellerName || 'Unknown';
         if (!groups[seller]) {
           groups[seller] = { name: seller, items: [], total: 0 };
         }
         groups[seller].items.push(item);
-        const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
-        groups[seller].total += price;
+        
+        // Only add to total if NOT paid externally
+        if (!item.isPaidExternally) {
+          const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+          groups[seller].total += price;
+        }
       }
     });
     return Object.values(groups);
@@ -415,8 +452,8 @@ export default function App() {
           
           <div className="text-center mb-8">
             <div className="mx-auto mb-6 flex justify-center">
-  <img src="/logo.png" alt="KishDBSoria Logo" className="h-24 w-auto object-contain" />
-</div>
+              <img src="/logo.png" alt="KishDBSoria Logo" className="h-24 w-auto object-contain" />
+            </div>
             <h1 className="text-2xl font-bold text-slate-800">{APP_NAME}</h1>
             <p className="text-pink-500 font-medium">Logistics & Tracking</p>
           </div>
@@ -553,7 +590,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
-              <HeartHandshake className="text-pink-600 w-6 h-6" />
+              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
               <div>
                 <h1 className="text-xl font-bold text-slate-800 hidden sm:block">{APP_NAME}</h1>
                 <h1 className="text-xl font-bold text-slate-800 sm:hidden">KDS Dropping</h1>
@@ -682,9 +719,11 @@ export default function App() {
                   </div>
                   <div className="col-span-2">
                     <div className="text-sm font-medium text-slate-800">{item.itemName}</div>
-                    {/* HIDE PRICE FROM BUYER: Only show if role is NOT 'buyer' */}
+                    {/* Price Logic: Hide for buyers, show 'Paid Externally' style if needed */}
                     {role !== 'buyer' && (
-                      <div className="text-xs text-slate-500">Price: {item.price}</div>
+                      <div className={`text-xs ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-slate-500'}`}>
+                        {item.isPaidExternally ? `(${item.price})` : `Price: ${item.price}`}
+                      </div>
                     )}
                   </div>
                   <div className="col-span-1 text-sm text-slate-600 flex items-center gap-1">
@@ -693,6 +732,18 @@ export default function App() {
                   <div className="text-sm text-slate-600">{item.buyerName}</div>
                   <div className="text-sm text-slate-600">{item.sellerName}</div>
                   <div className="text-right flex items-center justify-end gap-2">
+                    
+                    {/* Admin Edit Button */}
+                    {role === 'admin' && (
+                        <button 
+                          onClick={() => handleEditClick(item)} 
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                          title="Edit Item"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                    )}
+
                     {item.status === 'dropped' ? (
                       <>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
@@ -749,9 +800,19 @@ export default function App() {
                   <div className="flex justify-between items-end border-t border-pink-50 pt-2">
                     <div className="text-xs text-slate-400">{item.createdAt.toLocaleDateString()}</div>
                     <div className="flex items-center gap-2">
+                       
+                       {/* Admin Edit on Mobile */}
+                       {role === 'admin' && (
+                          <button onClick={() => handleEditClick(item)} className="p-1 mr-2 text-slate-400">
+                             <Pencil className="w-4 h-4" />
+                          </button>
+                       )}
+
                        {/* HIDE PRICE FROM BUYER IN MOBILE VIEW */}
                        {role !== 'buyer' && (
-                          <span className="text-sm font-semibold text-purple-700 mr-2">{item.price !== '0' && `₱${item.price}`}</span>
+                          <span className={`text-sm font-semibold mr-2 ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>
+                            {item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}
+                          </span>
                        )}
                        {item.status === 'dropped' && role === 'admin' && (
                          <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
@@ -825,6 +886,80 @@ export default function App() {
         </div>
       )}
 
+      {/* --- MODAL: EDIT ITEM (ADMIN ONLY) --- */}
+      {isEditModalOpen && editingItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800">Edit Item</h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
+            </div>
+            <form onSubmit={handleUpdateItem} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label>
+                <input 
+                  type="text" 
+                  value={editingItem.itemName} 
+                  onChange={(e) => setEditingItem({...editingItem, itemName: e.target.value})} 
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Buyer Name</label>
+                <input 
+                  type="text" 
+                  value={editingItem.buyerName} 
+                  onChange={(e) => setEditingItem({...editingItem, buyerName: e.target.value})} 
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.price} 
+                      onChange={(e) => setEditingItem({...editingItem, price: e.target.value})} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                    <select 
+                      value={editingItem.location || 'SFC'}
+                      onChange={(e) => setEditingItem({...editingItem, location: e.target.value})}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
+                    >
+                      {LU_TOWNS.map(town => (
+                        <option key={town} value={town}>{town}</option>
+                      ))}
+                    </select>
+                  </div>
+              </div>
+
+              {/* NEW: MARK AS PAID EXTERNALLY */}
+              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex items-center justify-between">
+                 <div>
+                    <div className="font-semibold text-yellow-800 text-sm">Payment Received Outside?</div>
+                    <div className="text-xs text-yellow-600">Toggle this if buyer paid directly.</div>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={editingItem.isPaidExternally || false}
+                      onChange={(e) => setEditingItem({...editingItem, isPaidExternally: e.target.checked})}
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                 </label>
+              </div>
+
+              <button type="submit" className="w-full py-3 bg-purple-800 text-white rounded-lg font-semibold hover:bg-purple-900 shadow-md">Update Item</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* --- MODAL: ADMIN CASH OUT --- */}
       {isCashOutModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto">
@@ -892,7 +1027,10 @@ export default function App() {
                                 <tr key={item.id}>
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
                                     <td className="py-2 text-slate-500">{item.buyerName}</td>
-                                    <td className="py-2 text-right font-medium text-purple-700">₱{item.price}</td>
+                                    <td className="py-2 text-right font-medium text-purple-700">
+                                        {/* Updated Invoice Display Logic */}
+                                        {item.isPaidExternally ? <span className="text-gray-400 line-through decoration-double">({item.price})</span> : `₱${item.price}`}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
