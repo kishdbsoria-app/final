@@ -40,7 +40,8 @@ import {
   Pencil,
   CalendarCheck,
   KeyRound, // Added Key Icon
-  Trash2 // Added Trash Icon
+  Trash2, // Added Trash Icon
+  UserPlus // Added UserPlus Icon
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -114,7 +115,11 @@ export default function App() {
   const [loginInputName, setLoginInputName] = useState('');
   const [loginInputPass, setLoginInputPass] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
+  // REMOVED: isRegistering state (Registration is now Admin-only)
+
+  // Admin Add User State
+  const [newSellerName, setNewSellerName] = useState('');
+  const [newSellerPass, setNewSellerPass] = useState('');
 
   // Form State for New Item
   const [newItemItem, setNewItemItem] = useState('');
@@ -201,7 +206,7 @@ export default function App() {
     }
   };
 
-  const handleSellerAuth = async () => {
+  const handleSellerLogin = async () => {
     if (!loginInputName.trim() || !loginInputPass.trim()) {
       setLoginError('Please enter name and password');
       return;
@@ -213,37 +218,20 @@ export default function App() {
     try {
       const userSnap = await getDoc(userRef);
       
-      if (isRegistering) {
-        if (userSnap.exists()) {
-          setLoginError('Shop name already exists. Please login instead.');
+      // STRICT LOGIN ONLY (No Registration)
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        if (userData.password === loginInputPass) {
+          completeLogin('seller', userData.displayName);
         } else {
-           await setDoc(userRef, {
-            displayName: loginInputName,
-            password: loginInputPass,
-            role: 'seller',
-            createdAt: serverTimestamp()
-          });
-          completeLogin('seller', loginInputName);
+          setLoginError('Incorrect password');
         }
       } else {
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          if (userData.password === loginInputPass) {
-            completeLogin('seller', userData.displayName);
-          } else {
-            setLoginError('Incorrect password');
-          }
-        } else {
-          setLoginError('Shop not found. Please register first.');
-        }
+        setLoginError('Account not found. Please ask Admin to create your account.');
       }
     } catch (err) {
       console.error("Auth Error:", err);
-      if (err.code === 'permission-denied') {
-         setLoginError('Database Permission Denied. Please check Firestore Rules.');
-      } else {
-         setLoginError('Error: ' + err.message);
-      }
+      setLoginError('Error: ' + err.message);
     }
   };
 
@@ -261,7 +249,6 @@ export default function App() {
     setLoginInputName('');
     setLoginInputPass('');
     setLoginError('');
-    setIsRegistering(false);
   };
 
   const handleLogout = () => {
@@ -324,6 +311,36 @@ export default function App() {
   };
 
   // --- User Management Handlers (Admin) ---
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newSellerName || !newSellerPass) return;
+
+    // Same safeId logic as login
+    const safeId = newSellerName.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'sellers', safeId);
+
+    try {
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+            alert("Error: A seller with this name (or similar) already exists.");
+            return;
+        }
+
+        await setDoc(userRef, {
+            displayName: newSellerName,
+            password: newSellerPass,
+            role: 'seller',
+            createdAt: serverTimestamp()
+        });
+
+        alert(`Success! Account created for ${newSellerName}`);
+        setNewSellerName('');
+        setNewSellerPass('');
+    } catch (error) {
+        alert("Error creating user: " + error.message);
+    }
+  };
 
   const handleResetPassword = async (sellerId, sellerName) => {
     const newPass = prompt(`Enter new password for ${sellerName}:`);
@@ -522,7 +539,7 @@ export default function App() {
           {loginMode === 'menu' && (
             <div className="space-y-3">
               <button 
-                onClick={() => { setLoginMode('seller'); setIsRegistering(false); }}
+                onClick={() => { setLoginMode('seller'); }}
                 className="w-full flex items-center p-4 bg-white border-2 border-pink-100 rounded-xl hover:border-pink-500 hover:bg-pink-50 transition-all group"
               >
                 <div className="bg-pink-100 p-2 rounded-lg mr-4 group-hover:bg-pink-200"><ShoppingBag className="text-pink-600 w-6 h-6" /></div>
@@ -575,11 +592,11 @@ export default function App() {
             </div>
           )}
 
-          {/* SELLER FORM */}
+          {/* SELLER FORM (LOGIN ONLY) */}
           {loginMode === 'seller' && (
             <div className="animate-in slide-in-from-right fade-in duration-300">
               <h2 className="text-lg font-bold text-slate-800 mb-2">
-                {isRegistering ? 'Register New Shop' : 'Seller Login'}
+                Seller Login
               </h2>
               <div className="space-y-3">
                 <input 
@@ -591,7 +608,7 @@ export default function App() {
                 />
                 <input 
                   type="password" 
-                  placeholder={isRegistering ? "Create Password" : "Password"}
+                  placeholder="Password"
                   value={loginInputPass}
                   onChange={(e) => setLoginInputPass(e.target.value)}
                   className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none"
@@ -601,19 +618,16 @@ export default function App() {
               {loginError && <p className="text-red-500 text-sm mt-3 text-center">{loginError}</p>}
               
               <button 
-                onClick={handleSellerAuth} 
+                onClick={handleSellerLogin} 
                 className="w-full bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 mt-4 mb-2 shadow-md shadow-pink-200"
               >
-                {isRegistering ? 'Create Account' : 'Login'}
+                Login
               </button>
               
               <div className="text-center mb-4">
-                 <button 
-                    onClick={() => { setIsRegistering(!isRegistering); setLoginError(''); }}
-                    className="text-sm text-pink-600 hover:text-pink-800 font-medium"
-                 >
-                    {isRegistering ? 'Already have an account? Login' : 'New Seller? Register Here'}
-                 </button>
+                 <p className="text-xs text-slate-400">
+                    Don't have an account? Please contact Admin.
+                 </p>
               </div>
 
               <button onClick={() => { setLoginMode('menu'); setLoginError(''); }} className="w-full text-slate-500 text-sm hover:underline">Back to Menu</button>
@@ -1086,7 +1100,37 @@ export default function App() {
                 <button onClick={() => setIsUserMgmtOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
 
+            {/* NEW: ADD SELLER FORM INSIDE MODAL */}
+            <div className="p-6 bg-pink-50 border-b border-pink-100">
+               <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" /> Add New Seller
+               </h4>
+               <form onSubmit={handleCreateUser} className="flex flex-col sm:flex-row gap-3">
+                  <input 
+                    type="text" 
+                    placeholder="Shop Name" 
+                    value={newSellerName}
+                    onChange={(e) => setNewSellerName(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Initial Password" 
+                    value={newSellerPass}
+                    onChange={(e) => setNewSellerPass(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-purple-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-900 transition-colors"
+                  >
+                    Add Seller
+                  </button>
+               </form>
+            </div>
+
             <div className="p-6">
+               <div className="text-xs font-semibold text-slate-400 uppercase mb-3">Registered Sellers</div>
                <div className="space-y-2">
                    {sellerList.length === 0 ? (
                        <div className="text-center py-10 text-slate-400">No sellers found.</div>
