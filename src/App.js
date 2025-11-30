@@ -13,6 +13,7 @@ import {
   updateDoc, 
   doc, 
   getDoc,
+  deleteDoc, // Added deleteDoc
   setDoc,
   onSnapshot, 
   serverTimestamp, 
@@ -24,6 +25,7 @@ import {
   Plus, 
   CheckCircle2, 
   User, 
+  Users, // Added Users Icon
   ShoppingBag, 
   LogOut, 
   MapPin,
@@ -36,7 +38,9 @@ import {
   AlertCircle,
   HeartHandshake,
   Pencil,
-  CalendarCheck // Added Calendar Icon for Claimed Date
+  CalendarCheck,
+  KeyRound, // Added Key Icon
+  Trash2 // Added Trash Icon
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -89,6 +93,7 @@ export default function App() {
   
   // Data State
   const [items, setItems] = useState([]);
+  const [sellerList, setSellerList] = useState([]); // New state for managing users
   const [loading, setLoading] = useState(true);
   
   // UI State
@@ -101,6 +106,7 @@ export default function App() {
   const [editingItem, setEditingItem] = useState(null);
 
   const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
+  const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); // New User Mgmt Modal
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Login UI State
@@ -157,7 +163,6 @@ export default function App() {
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
-        // NEW: Parse claimedAt if it exists
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
@@ -170,6 +175,21 @@ export default function App() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // NEW: Fetch Sellers list for Admin User Management
+  useEffect(() => {
+    if (isUserMgmtOpen && role === 'admin') {
+       const sellersRef = collection(db, 'artifacts', appId, 'public', 'data', 'sellers');
+       const unsubscribe = onSnapshot(sellersRef, (snapshot) => {
+          const users = snapshot.docs.map(doc => ({
+             id: doc.id,
+             ...doc.data()
+          }));
+          setSellerList(users);
+       });
+       return () => unsubscribe();
+    }
+  }, [isUserMgmtOpen, role]);
 
   // --- Login Handlers ---
 
@@ -251,6 +271,7 @@ export default function App() {
     localStorage.removeItem('la_union_name');
     setLoginMode('menu');
     setSelectedSellerForCashout(null);
+    setIsUserMgmtOpen(false);
   };
 
   // --- Data Handlers ---
@@ -288,15 +309,10 @@ export default function App() {
     try {
       const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', itemId);
       
-      // NEW: Prepare updates object
       const updates = { status: newStatus };
-      
-      // If marking as claimed, stamp the date
       if (newStatus === 'claimed') {
         updates.claimedAt = serverTimestamp();
-      } 
-      // If reverting to dropped, remove the claim date (set to null)
-      else if (newStatus === 'dropped') {
+      } else if (newStatus === 'dropped') {
         updates.claimedAt = null;
       }
 
@@ -304,6 +320,33 @@ export default function App() {
     } catch (error) {
       console.error("Error updating status:", error);
       alert("Error updating status: " + error.message);
+    }
+  };
+
+  // --- User Management Handlers (Admin) ---
+
+  const handleResetPassword = async (sellerId, sellerName) => {
+    const newPass = prompt(`Enter new password for ${sellerName}:`);
+    if (!newPass) return;
+    
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sellers', sellerId), {
+        password: newPass
+      });
+      alert("Password updated successfully.");
+    } catch (error) {
+      alert("Error updating password: " + error.message);
+    }
+  };
+
+  const handleDeleteUser = async (sellerId, sellerName) => {
+    if (!confirm(`Are you sure you want to remove access for ${sellerName}? This cannot be undone.`)) return;
+    
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sellers', sellerId));
+      alert(`User ${sellerName} has been removed.`);
+    } catch (error) {
+      alert("Error removing user: " + error.message);
     }
   };
 
@@ -395,7 +438,7 @@ export default function App() {
     }
   };
 
-  // --- Filtering (Strict Privacy Logic) ---
+  // --- Filtering ---
 
   const filteredItems = useMemo(() => {
     if (role === 'buyer' && !searchTerm.trim()) {
@@ -623,6 +666,17 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+                {/* NEW: USER MANAGEMENT BUTTON (Admin Only) */}
+                {role === 'admin' && (
+                    <button 
+                        onClick={() => setIsUserMgmtOpen(true)}
+                        className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                        title="Manage Users"
+                    >
+                        <Users className="w-5 h-5" />
+                    </button>
+                )}
+
                 {role === 'admin' && (
                     <button 
                         onClick={() => setIsCashOutModalOpen(true)}
@@ -1013,6 +1067,66 @@ export default function App() {
 
               <button type="submit" className="w-full py-3 bg-purple-800 text-white rounded-lg font-semibold hover:bg-purple-900 shadow-md">Update Item</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: USER MANAGEMENT (ADMIN ONLY) --- */}
+      {isUserMgmtOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl my-8">
+            <div className="p-6 border-b border-pink-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <Users className="text-purple-800 w-6 h-6" />
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Manage Users</h3>
+                      <p className="text-sm text-slate-500">Reset passwords or remove inactive sellers</p>
+                    </div>
+                </div>
+                <button onClick={() => setIsUserMgmtOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
+            </div>
+
+            <div className="p-6">
+               <div className="space-y-2">
+                   {sellerList.length === 0 ? (
+                       <div className="text-center py-10 text-slate-400">No sellers found.</div>
+                   ) : (
+                       sellerList.map((seller) => (
+                           <div 
+                             key={seller.id} 
+                             className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group"
+                           >
+                               <div className="flex items-center gap-3">
+                                   <div className="bg-pink-100 p-2 rounded-full text-pink-600 font-bold w-10 h-10 flex items-center justify-center group-hover:bg-pink-200">
+                                      <User className="w-5 h-5" />
+                                   </div>
+                                   <div className="text-left">
+                                       <div className="font-bold text-slate-800">{seller.displayName}</div>
+                                       <div className="text-xs text-slate-500">ID: {seller.id}</div>
+                                   </div>
+                               </div>
+                               
+                               <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleResetPassword(seller.id, seller.displayName)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Reset Password"
+                                  >
+                                    <KeyRound className="w-5 h-5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteUser(seller.id, seller.displayName)}
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove Access"
+                                  >
+                                    <Trash2 className="w-5 h-5" />
+                                  </button>
+                               </div>
+                           </div>
+                       ))
+                   )}
+               </div>
+            </div>
           </div>
         </div>
       )}
