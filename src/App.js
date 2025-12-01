@@ -562,22 +562,11 @@ export default function App() {
 
       let matchesStatus = true;
       if (statusFilter !== 'all') {
-        // If filter is NOT all, it must match exact status
         matchesStatus = item.status === statusFilter;
       }
       
-      // For 'all' filter, we normally hide 'cashed_out' AND 'pulled_out'
-      // But if user specifically clicks 'Archive' (which sets filter to 'cashed_out'), we want to see both.
-      // WAIT: logic needs to be:
-      // If statusFilter == 'cashed_out' -> show 'cashed_out' OR 'pulled_out'
-      // If statusFilter == 'all' -> hide 'cashed_out' AND 'pulled_out'
-      
-      if (statusFilter === 'cashed_out') {
-         matchesStatus = item.status === 'cashed_out' || item.status === 'pulled_out';
-      } else if (statusFilter === 'all') {
-         if (item.status === 'cashed_out' || item.status === 'pulled_out') {
-             matchesStatus = false;
-         }
+      if (statusFilter === 'all' && item.status === 'cashed_out') {
+        matchesStatus = false;
       }
 
       return matchesSearch && matchesStatus;
@@ -980,15 +969,6 @@ export default function App() {
                               <PackageMinus className="w-5 h-5" />
                               </button>
                             </div>
-                        )}
-                        {/* Remove Cancellation from Sellers since they are Read-Only */}
-                        {role === 'admin' && (
-                            <button 
-                                onClick={() => handleStatusChange(item.id, 'cancelled')}
-                                className="text-xs text-red-400 hover:text-red-600 hover:underline ml-2"
-                            >
-                                Cancel
-                            </button>
                         )}
                       </>
                     ) : item.status === 'claimed' ? (
