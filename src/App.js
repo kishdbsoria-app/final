@@ -226,7 +226,14 @@ export default function App() {
 
   const handleMassDelete = async () => {
     if (selectedItems.size === 0) return;
-    if (!confirm(`Are you sure you want to DELETE ${selectedItems.size} items? This cannot be undone.`)) return;
+    
+    // SECURITY CHECK: REQUIRE ADMIN PIN
+    const pin = prompt(`⚠️ DANGER ZONE ⚠️\n\nYou are about to PERMANENTLY DELETE ${selectedItems.size} items.\n\nThis cannot be undone. Please enter the Admin PIN to confirm:`);
+    
+    if (pin !== ADMIN_PIN) {
+        alert("Incorrect PIN. Deletion cancelled.");
+        return;
+    }
 
     setIsProcessing(true);
     try {
@@ -418,7 +425,13 @@ export default function App() {
   };
 
   const handleDeleteUser = async (sellerId, sellerName) => {
-    if (!confirm(`Are you sure you want to remove access for ${sellerName}? This cannot be undone.`)) return;
+    // SECURITY CHECK: REQUIRE ADMIN PIN
+    const pin = prompt(`⚠️ WARNING ⚠️\n\nYou are about to remove access for ${sellerName}.\n\nPlease enter the Admin PIN to confirm:`);
+    
+    if (pin !== ADMIN_PIN) {
+        alert("Incorrect PIN. Action cancelled.");
+        return;
+    }
     
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sellers', sellerId));
