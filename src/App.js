@@ -104,6 +104,9 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all'); 
   const [isFormOpen, setIsFormOpen] = useState(false);
   
+  // MASS ACTION STATE
+  const [selectedItems, setSelectedItems] = useState(new Set()); // Stores IDs of selected items
+
   // EDIT MODAL STATE
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -111,7 +114,7 @@ export default function App() {
   const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showSuccessMsg, setShowSuccessMsg] = useState(false); // For rapid entry feedback
+  const [showSuccessMsg, setShowSuccessMsg] = useState(false); 
 
   // Login UI State
   const [loginMode, setLoginMode] = useState('menu'); 
@@ -184,7 +187,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // Fetch Sellers list for Dropdown AND Admin User Management
   useEffect(() => {
     if (role === 'admin') {
        const sellersRef = collection(db, 'artifacts', appId, 'public', 'data', 'sellers');
@@ -199,6 +201,52 @@ export default function App() {
        return () => unsubscribe();
     }
   }, [role]);
+
+  // --- Mass Action Handlers ---
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      // Select all currently filtered items
+      const allIds = filteredItems.map(i => i.id);
+      setSelectedItems(new Set(allIds));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleSelectItem = (id) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleMassDelete = async () => {
+    if (selectedItems.size === 0) return;
+    if (!confirm(`Are you sure you want to DELETE ${selectedItems.size} items? This cannot be undone.`)) return;
+
+    setIsProcessing(true);
+    try {
+      const batch = writeBatch(db);
+      selectedItems.forEach(id => {
+        const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', id);
+        batch.delete(itemRef);
+      });
+      await batch.commit();
+      
+      setSelectedItems(new Set()); // Clear selection
+      alert("Selected items deleted successfully.");
+    } catch (error) {
+      console.error("Error deleting items:", error);
+      alert("Error deleting items: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
 
   // --- Login Handlers ---
 
@@ -262,6 +310,7 @@ export default function App() {
     setLoginMode('menu');
     setSelectedSellerForCashout(null);
     setIsUserMgmtOpen(false);
+    setSelectedItems(new Set()); // Clear selection on logout
   };
 
   // --- Data Handlers ---
@@ -291,14 +340,11 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       
-      // CLEAR FIELDS BUT KEEP MODAL OPEN (Rapid Entry)
       setNewItemItem('');
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
-      // Do NOT reset seller or location to allow fast entry
       
-      // Show mini success indicator
       setShowSuccessMsg(true);
       setTimeout(() => setShowSuccessMsg(false), 2000);
 
@@ -471,7 +517,7 @@ export default function App() {
     }
   };
 
-  // --- Filtering (Strict Privacy Logic + UPDATED LOCATION SEARCH) ---
+  // --- Filtering ---
 
   const filteredItems = useMemo(() => {
     if (role === 'buyer' && !searchTerm.trim()) {
@@ -487,7 +533,6 @@ export default function App() {
       let matchesSearch = false;
       
       if (role === 'buyer') {
-          // BUYER SEARCH UPDATE: Match Buyer Name OR Location
           matchesSearch = 
             item.buyerName.toLowerCase().includes(searchLower) || 
             (item.location && item.location.toLowerCase().includes(searchLower));
@@ -789,6 +834,16 @@ export default function App() {
                 />
             </div>
             <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                 {/* MASS DELETE BUTTON (Admin Only & Only when items selected) */}
+                 {role === 'admin' && selectedItems.size > 0 && (
+                    <button 
+                        onClick={handleMassDelete}
+                        className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-red-100 text-red-600 hover:bg-red-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"
+                    >
+                        <Trash2 className="w-4 h-4" /> Delete ({selectedItems.size})
+                    </button>
+                 )}
+
                 <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'all' ? 'bg-purple-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>All Active</button>
                 <button onClick={() => setStatusFilter('dropped')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'dropped' ? 'bg-pink-600 text-white' : 'bg-pink-50 text-pink-700 hover:bg-pink-100'}`}>Ready</button>
                 <button onClick={() => setStatusFilter('claimed')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'claimed' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>Claimed</button>
@@ -803,7 +858,17 @@ export default function App() {
 
         {/* LIST VIEW */}
         <div className="bg-white rounded-xl shadow-sm border border-pink-100 overflow-hidden">
-          <div className="hidden md:grid grid-cols-7 gap-4 p-4 bg-fuchsia-50/50 border-b border-pink-100 text-xs font-semibold text-purple-800 uppercase tracking-wider">
+          <div className="hidden md:grid grid-cols-8 gap-4 p-4 bg-fuchsia-50/50 border-b border-pink-100 text-xs font-semibold text-purple-800 uppercase tracking-wider items-center">
+            {/* Checkbox Header */}
+            <div className="col-span-1">
+                {role === 'admin' && (
+                    <input 
+                        type="checkbox" 
+                        onChange={handleSelectAll} 
+                        className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
+                    />
+                )}
+            </div>
             <div className="col-span-1">Date</div>
             <div className="col-span-2">Item</div>
             <div className="col-span-1">Location</div>
@@ -817,8 +882,19 @@ export default function App() {
               <div key={item.id} className="group hover:bg-fuchsia-50 transition-colors">
                 
                 {/* Desktop */}
-                <div className="hidden md:grid grid-cols-7 gap-4 p-4 items-center">
-                  <div className="text-sm text-slate-500">
+                <div className="hidden md:grid grid-cols-8 gap-4 p-4 items-center">
+                  {/* Checkbox Cell */}
+                  <div className="col-span-1">
+                     {role === 'admin' && (
+                        <input 
+                            type="checkbox" 
+                            checked={selectedItems.has(item.id)}
+                            onChange={() => handleSelectItem(item.id)}
+                            className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
+                        />
+                     )}
+                  </div>
+                  <div className="col-span-1 text-sm text-slate-500">
                     {item.createdAt.toLocaleDateString()}
                     <div className="text-xs text-slate-400">{item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                   </div>
@@ -840,9 +916,9 @@ export default function App() {
                   <div className="col-span-1 text-sm text-slate-600 flex items-center gap-1">
                      <MapPin className="w-3 h-3 text-slate-400" /> {item.location || '-'}
                   </div>
-                  <div className="text-sm text-slate-600">{item.buyerName}</div>
-                  <div className="text-sm text-slate-600">{item.sellerName}</div>
-                  <div className="text-right flex items-center justify-end gap-2">
+                  <div className="col-span-1 text-sm text-slate-600">{item.buyerName}</div>
+                  <div className="col-span-1 text-sm text-slate-600">{item.sellerName}</div>
+                  <div className="col-span-1 text-right flex items-center justify-end gap-2">
                     
                     {/* Admin Edit Button */}
                     {role === 'admin' && (
@@ -906,68 +982,81 @@ export default function App() {
                 </div>
 
                 {/* Mobile */}
-                <div className="md:hidden p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-semibold text-slate-800">{item.itemName}</h4>
-                      <p className="text-sm text-slate-500">Buyer: <span className="text-slate-700 font-medium">{item.buyerName}</span></p>
-                    </div>
-                    {item.status === 'dropped' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
-                    ) : item.status === 'claimed' ? (
-                      // MOBILE: Display Claimed Date
-                      <div className="text-right">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
-                        {item.claimedAt && (
-                          <div className="text-[10px] text-slate-400 mt-1">{item.claimedAt.toLocaleDateString()}</div>
-                        )}
-                        {/* UNDO BUTTON: ADMIN ONLY (MOBILE) */}
-                        {role === 'admin' && (
-                           <button 
-                             onClick={() => handleStatusChange(item.id, 'dropped')}
-                             className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"
-                           >
-                             <RotateCcw className="w-3 h-3" /> Undo
-                           </button>
-                        )}
-                      </div>
-                    ) : item.status === 'cashed_out' ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>
-                    ) : (
-                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-col gap-1 mb-2">
-                       <div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> Seller: {item.sellerName}</div>
-                  </div>
-
-                  <div className="flex justify-between items-end border-t border-pink-50 pt-2">
-                    <div className="text-xs text-slate-400">{item.createdAt.toLocaleDateString()}</div>
-                    <div className="flex items-center gap-2">
-                       
-                       {/* Admin Edit on Mobile */}
-                       {role === 'admin' && (
-                          <button onClick={() => handleEditClick(item)} className="p-1 mr-2 text-slate-400">
-                             <Pencil className="w-4 h-4" />
-                          </button>
-                       )}
-
-                       {/* HIDE PRICE FROM BUYER IN MOBILE VIEW */}
-                       {role !== 'buyer' && (
-                          <div className="text-right mr-2">
-                            <span className={`text-sm font-semibold ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>
-                              {item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}
-                            </span>
-                            {/* Mobile Fee Display */}
-                            {item.transferFee && item.transferFee !== '0' && (
-                              <div className="text-[10px] text-pink-500">Fee: {item.transferFee}</div>
+                <div className="md:hidden p-4 flex gap-3">
+                   {/* Mobile Checkbox */}
+                   {role === 'admin' && (
+                        <div className="pt-1">
+                            <input 
+                                type="checkbox" 
+                                checked={selectedItems.has(item.id)}
+                                onChange={() => handleSelectItem(item.id)}
+                                className="w-5 h-5 text-pink-600 rounded border-gray-300 focus:ring-pink-500"
+                            />
+                        </div>
+                   )}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start mb-2">
+                        <div>
+                        <h4 className="font-semibold text-slate-800">{item.itemName}</h4>
+                        <p className="text-sm text-slate-500">Buyer: <span className="text-slate-700 font-medium">{item.buyerName}</span></p>
+                        </div>
+                        {item.status === 'dropped' ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
+                        ) : item.status === 'claimed' ? (
+                        // MOBILE: Display Claimed Date
+                        <div className="text-right">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>
+                            {item.claimedAt && (
+                            <div className="text-[10px] text-slate-400 mt-1">{item.claimedAt.toLocaleDateString()}</div>
                             )}
-                          </div>
-                       )}
-                       {item.status === 'dropped' && role === 'admin' && (
-                         <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
-                       )}
+                            {/* UNDO BUTTON: ADMIN ONLY (MOBILE) */}
+                            {role === 'admin' && (
+                            <button 
+                                onClick={() => handleStatusChange(item.id, 'dropped')}
+                                className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"
+                            >
+                                <RotateCcw className="w-3 h-3" /> Undo
+                            </button>
+                            )}
+                        </div>
+                        ) : item.status === 'cashed_out' ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>
+                        ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>
+                        )}
+                    </div>
+                    
+                    <div className="flex flex-col gap-1 mb-2">
+                        <div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> Seller: {item.sellerName}</div>
+                    </div>
+
+                    <div className="flex justify-between items-end border-t border-pink-50 pt-2">
+                        <div className="text-xs text-slate-400">{item.createdAt.toLocaleDateString()}</div>
+                        <div className="flex items-center gap-2">
+                        
+                        {/* Admin Edit on Mobile */}
+                        {role === 'admin' && (
+                            <button onClick={() => handleEditClick(item)} className="p-1 mr-2 text-slate-400">
+                                <Pencil className="w-4 h-4" />
+                            </button>
+                        )}
+
+                        {/* HIDE PRICE FROM BUYER IN MOBILE VIEW */}
+                        {role !== 'buyer' && (
+                            <div className="text-right mr-2">
+                                <span className={`text-sm font-semibold ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>
+                                {item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}
+                                </span>
+                                {/* Mobile Fee Display */}
+                                {item.transferFee && item.transferFee !== '0' && (
+                                <div className="text-[10px] text-pink-500">Fee: {item.transferFee}</div>
+                                )}
+                            </div>
+                        )}
+                        {item.status === 'dropped' && role === 'admin' && (
+                            <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
+                        )}
+                        </div>
                     </div>
                   </div>
                 </div>
