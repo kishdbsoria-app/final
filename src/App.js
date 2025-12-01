@@ -42,7 +42,8 @@ import {
   KeyRound, 
   Trash2, 
   UserPlus,
-  RotateCcw
+  RotateCcw,
+  Check
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -110,6 +111,7 @@ export default function App() {
   const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccessMsg, setShowSuccessMsg] = useState(false); // For rapid entry feedback
 
   // Login UI State
   const [loginMode, setLoginMode] = useState('menu'); 
@@ -289,11 +291,17 @@ export default function App() {
         createdAt: serverTimestamp()
       });
       
+      // CLEAR FIELDS BUT KEEP MODAL OPEN (Rapid Entry)
       setNewItemItem('');
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
-      setIsFormOpen(false);
+      // Do NOT reset seller or location to allow fast entry
+      
+      // Show mini success indicator
+      setShowSuccessMsg(true);
+      setTimeout(() => setShowSuccessMsg(false), 2000);
+
     } catch (error) {
       console.error("Error adding item:", error);
       alert("Error adding item: " + error.message);
@@ -402,7 +410,7 @@ export default function App() {
     }
   };
 
-  // --- Admin Cash Out Logic (UPDATED) ---
+  // --- Admin Cash Out Logic ---
 
   const sellersWithBalance = useMemo(() => {
     if (role !== 'admin') return [];
@@ -416,10 +424,8 @@ export default function App() {
         }
         groups[seller].items.push(item);
         
-        // Logic: Total = Price + Transfer Fee (unless paid externally)
         if (!item.isPaidExternally) {
           const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
-          // NEW: Parse Fee and Add to Total
           const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
           groups[seller].total += (price + fee);
         }
@@ -465,7 +471,7 @@ export default function App() {
     }
   };
 
-  // --- Filtering ---
+  // --- Filtering (Strict Privacy Logic + UPDATED LOCATION SEARCH) ---
 
   const filteredItems = useMemo(() => {
     if (role === 'buyer' && !searchTerm.trim()) {
@@ -481,7 +487,10 @@ export default function App() {
       let matchesSearch = false;
       
       if (role === 'buyer') {
-          matchesSearch = item.buyerName.toLowerCase().includes(searchLower);
+          // BUYER SEARCH UPDATE: Match Buyer Name OR Location
+          matchesSearch = 
+            item.buyerName.toLowerCase().includes(searchLower) || 
+            (item.location && item.location.toLowerCase().includes(searchLower));
       } else {
           matchesSearch = 
             item.itemName.toLowerCase().includes(searchLower) ||
@@ -650,7 +659,7 @@ export default function App() {
               <h2 className="text-lg font-bold text-slate-800 mb-4">Buyer Access</h2>
               <input 
                 type="text" 
-                placeholder="Enter your Name"
+                placeholder="Enter your Name or Town"
                 value={loginInputName}
                 onChange={(e) => setLoginInputName(e.target.value)}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg mb-4 focus:ring-2 focus:ring-purple-500 outline-none"
@@ -773,7 +782,7 @@ export default function App() {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <input 
                 type="text" 
-                placeholder={role === 'seller' ? "Search my items..." : (role === 'buyer' ? "Type YOUR NAME to find packages..." : "Search items, buyers, or sellers...")}
+                placeholder={role === 'seller' ? "Search my items..." : (role === 'buyer' ? "Type YOUR NAME or TOWN..." : "Search items, buyers, or sellers...")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
@@ -858,7 +867,8 @@ export default function App() {
                             <CheckCircle2 className="w-5 h-5" />
                             </button>
                         )}
-                        {(role === 'admin' || (role === 'seller' && item.sellerName === userName)) && (
+                        {/* Remove Cancellation from Sellers since they are Read-Only */}
+                        {role === 'admin' && (
                             <button 
                                 onClick={() => handleStatusChange(item.id, 'cancelled')}
                                 className="text-xs text-red-400 hover:text-red-600 hover:underline ml-2"
@@ -993,6 +1003,14 @@ export default function App() {
               <h3 className="text-lg font-bold text-slate-800">Drop New Item</h3>
               <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
+            
+            {/* SUCCESS MESSAGE (RAPID ENTRY) */}
+            {showSuccessMsg && (
+                <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                    <Check className="w-4 h-4" /> Item added successfully!
+                </div>
+            )}
+
             <form onSubmit={handleAddItem} className="space-y-4">
               
               {/* NEW: SELLER SELECTION (ADMIN ONLY) */}
@@ -1025,7 +1043,6 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
-                    {/* NEW: TRANSFER FEE INPUT */}
                     <input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
                   </div>
               </div>
@@ -1041,7 +1058,11 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <button type="submit" className="w-full py-3 bg-pink-600 text-white rounded-lg font-semibold hover:bg-pink-700 shadow-md shadow-pink-200">Confirm Drop</button>
+              
+              <div className="flex gap-2">
+                  <button type="submit" className="flex-1 py-3 bg-pink-600 text-white rounded-lg font-semibold hover:bg-pink-700 shadow-md shadow-pink-200">Confirm Drop</button>
+                  <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-3 bg-slate-100 text-slate-600 rounded-lg font-semibold hover:bg-slate-200">Done / Close</button>
+              </div>
             </form>
           </div>
         </div>
@@ -1086,7 +1107,6 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
-                    {/* NEW: EDIT TRANSFER FEE */}
                     <input 
                       type="text" 
                       value={editingItem.transferFee || '0'} 
