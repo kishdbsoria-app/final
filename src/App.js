@@ -42,7 +42,7 @@ import {
   KeyRound, 
   Trash2, 
   UserPlus,
-  RotateCcw // Added Undo Icon
+  RotateCcw
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -127,7 +127,7 @@ export default function App() {
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemTransferFee, setNewItemTransferFee] = useState(''); 
   const [newItemLocation, setNewItemLocation] = useState('SFC');
-  const [newItemSeller, setNewItemSeller] = useState(''); // NEW: For Admin to select seller
+  const [newItemSeller, setNewItemSeller] = useState(''); 
 
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
@@ -182,10 +182,8 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // NEW: Fetch Sellers list for Dropdown AND Admin User Management
+  // Fetch Sellers list for Dropdown AND Admin User Management
   useEffect(() => {
-    // We now fetch this if role is 'admin', regardless of modal state, 
-    // so the dropdown in "New Drop" works immediately.
     if (role === 'admin') {
        const sellersRef = collection(db, 'artifacts', appId, 'public', 'data', 'sellers');
        const unsubscribe = onSnapshot(sellersRef, (snapshot) => {
@@ -193,7 +191,6 @@ export default function App() {
              id: doc.id,
              ...doc.data()
           }));
-          // Sort alphabetically
           users.sort((a, b) => a.displayName.localeCompare(b.displayName));
           setSellerList(users);
        });
@@ -271,7 +268,6 @@ export default function App() {
     e.preventDefault();
     if (!newItemItem || !newItemBuyer) return;
 
-    // Use selected seller if admin, otherwise use logged-in user (though sellers can't see this form anymore)
     const actualSeller = role === 'admin' ? newItemSeller : userName;
 
     if (!actualSeller) {
@@ -284,7 +280,7 @@ export default function App() {
       await addDoc(itemsRef, {
         itemName: newItemItem,
         buyerName: newItemBuyer,
-        sellerName: actualSeller, // Use the selected seller
+        sellerName: actualSeller, 
         location: newItemLocation,
         price: newItemPrice || '0',
         transferFee: newItemTransferFee || '0', 
@@ -297,7 +293,6 @@ export default function App() {
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
-      // Do NOT reset seller or location to allow fast entry
       setIsFormOpen(false);
     } catch (error) {
       console.error("Error adding item:", error);
@@ -313,7 +308,7 @@ export default function App() {
       if (newStatus === 'claimed') {
         updates.claimedAt = serverTimestamp();
       } else if (newStatus === 'dropped') {
-        updates.claimedAt = null; // Remove claimed date if undoing
+        updates.claimedAt = null; 
       }
 
       await updateDoc(itemRef, updates);
@@ -407,7 +402,7 @@ export default function App() {
     }
   };
 
-  // --- Admin Cash Out Logic ---
+  // --- Admin Cash Out Logic (UPDATED) ---
 
   const sellersWithBalance = useMemo(() => {
     if (role !== 'admin') return [];
@@ -421,9 +416,12 @@ export default function App() {
         }
         groups[seller].items.push(item);
         
+        // Logic: Total = Price + Transfer Fee (unless paid externally)
         if (!item.isPaidExternally) {
           const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
-          groups[seller].total += price;
+          // NEW: Parse Fee and Add to Total
+          const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
+          groups[seller].total += (price + fee);
         }
       }
     });
@@ -987,7 +985,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* --- MODAL: DROP ITEM --- */}
+      {/* --- MODAL: DROP ITEM (ADMIN ONLY NOW) --- */}
       {isFormOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl">
@@ -1027,6 +1025,7 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    {/* NEW: TRANSFER FEE INPUT */}
                     <input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
                   </div>
               </div>
@@ -1087,6 +1086,7 @@ export default function App() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    {/* NEW: EDIT TRANSFER FEE */}
                     <input 
                       type="text" 
                       value={editingItem.transferFee || '0'} 
@@ -1281,15 +1281,15 @@ export default function App() {
 
                     <table className="w-full mb-6 text-sm">
                         <thead>
-                            <tr className="border-b-2 border-pink-100 text-left"><th className="py-2 text-slate-500">Item</th><th className="py-2 text-slate-500">Buyer</th><th className="py-2 text-slate-500 text-right">Price</th></tr>
+                            <tr className="border-b-2 border-pink-100 text-left"><th className="py-2 text-slate-500">Item</th><th className="py-2 text-slate-500">Buyer</th><th className="py-2 text-slate-500 text-right">Fee</th><th className="py-2 text-slate-500 text-right">Price</th></tr>
                         </thead>
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
                                 <tr key={item.id}>
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
                                     <td className="py-2 text-slate-500">{item.buyerName}</td>
+                                    <td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td>
                                     <td className="py-2 text-right font-medium text-purple-700">
-                                        {/* Updated Invoice Display Logic */}
                                         {item.isPaidExternally ? <span className="text-gray-400 line-through decoration-double">({item.price})</span> : `₱${item.price}`}
                                     </td>
                                 </tr>
@@ -1297,7 +1297,7 @@ export default function App() {
                         </tbody>
                         <tfoot>
                             <tr className="border-t-2 border-slate-800">
-                                <td colSpan="2" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
+                                <td colSpan="3" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
                         </tfoot>
