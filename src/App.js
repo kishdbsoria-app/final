@@ -43,7 +43,8 @@ import {
   Trash2, 
   UserPlus,
   RotateCcw,
-  Check
+  Check,
+  PackageMinus // Added Icon for Pull Out
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -105,7 +106,7 @@ export default function App() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   
   // MASS ACTION STATE
-  const [selectedItems, setSelectedItems] = useState(new Set()); // Stores IDs of selected items
+  const [selectedItems, setSelectedItems] = useState(new Set()); 
 
   // EDIT MODAL STATE
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -370,7 +371,9 @@ export default function App() {
         updates.claimedAt = serverTimestamp();
       } else if (newStatus === 'dropped') {
         updates.claimedAt = null; 
-      }
+      } 
+      // For Pull Out, we might want to timestamp it too, but user didn't explicitly ask. 
+      // It will just change status.
 
       await updateDoc(itemRef, updates);
     } catch (error) {
@@ -559,11 +562,22 @@ export default function App() {
 
       let matchesStatus = true;
       if (statusFilter !== 'all') {
+        // If filter is NOT all, it must match exact status
         matchesStatus = item.status === statusFilter;
       }
       
-      if (statusFilter === 'all' && item.status === 'cashed_out') {
-        matchesStatus = false;
+      // For 'all' filter, we normally hide 'cashed_out' AND 'pulled_out'
+      // But if user specifically clicks 'Archive' (which sets filter to 'cashed_out'), we want to see both.
+      // WAIT: logic needs to be:
+      // If statusFilter == 'cashed_out' -> show 'cashed_out' OR 'pulled_out'
+      // If statusFilter == 'all' -> hide 'cashed_out' AND 'pulled_out'
+      
+      if (statusFilter === 'cashed_out') {
+         matchesStatus = item.status === 'cashed_out' || item.status === 'pulled_out';
+      } else if (statusFilter === 'all') {
+         if (item.status === 'cashed_out' || item.status === 'pulled_out') {
+             matchesStatus = false;
+         }
       }
 
       return matchesSearch && matchesStatus;
@@ -583,7 +597,7 @@ export default function App() {
       total: viewableItems.length,
       dropped: viewableItems.filter(i => i.status === 'dropped').length,
       claimed: viewableItems.filter(i => i.status === 'claimed').length,
-      cashed_out: viewableItems.filter(i => i.status === 'cashed_out').length
+      cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length
     };
   }, [items, role, userName]);
 
@@ -948,13 +962,24 @@ export default function App() {
                       <>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
                         {role === 'admin' && (
-                            <button 
-                            onClick={() => handleStatusChange(item.id, 'claimed')}
-                            className="ml-2 p-1 hover:bg-purple-100 rounded text-purple-600"
-                            title="Admin: Mark Claimed"
-                            >
-                            <CheckCircle2 className="w-5 h-5" />
-                            </button>
+                            <div className="flex gap-1">
+                              <button 
+                              onClick={() => handleStatusChange(item.id, 'claimed')}
+                              className="p-1 hover:bg-purple-100 rounded text-purple-600"
+                              title="Admin: Mark Claimed"
+                              >
+                              <CheckCircle2 className="w-5 h-5" />
+                              </button>
+                              
+                              {/* PULL OUT BUTTON */}
+                              <button 
+                              onClick={() => handleStatusChange(item.id, 'pulled_out')}
+                              className="p-1 hover:bg-orange-100 rounded text-orange-600"
+                              title="Admin: Pull Out Item"
+                              >
+                              <PackageMinus className="w-5 h-5" />
+                              </button>
+                            </div>
                         )}
                         {/* Remove Cancellation from Sellers since they are Read-Only */}
                         {role === 'admin' && (
@@ -986,6 +1011,21 @@ export default function App() {
                            </button>
                         )}
                       </div>
+                    ) : item.status === 'pulled_out' ? (
+                        // DESKTOP: Display Pulled Out Status
+                        <div className="flex flex-col items-end">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>
+                          {/* UNDO BUTTON: ADMIN ONLY */}
+                          {role === 'admin' && (
+                             <button 
+                               onClick={() => handleStatusChange(item.id, 'dropped')}
+                               className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1"
+                               title="Undo / Revert to Ready"
+                             >
+                               <RotateCcw className="w-3 h-3" /> Undo
+                             </button>
+                          )}
+                        </div>
                     ) : item.status === 'cashed_out' ? (
                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Cashed Out</span>
                     ) : (
@@ -1032,6 +1072,19 @@ export default function App() {
                             </button>
                             )}
                         </div>
+                        ) : item.status === 'pulled_out' ? (
+                            <div className="text-right">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>
+                                {/* UNDO BUTTON: ADMIN ONLY (MOBILE) */}
+                                {role === 'admin' && (
+                                <button 
+                                    onClick={() => handleStatusChange(item.id, 'dropped')}
+                                    className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"
+                                >
+                                    <RotateCcw className="w-3 h-3" /> Undo
+                                </button>
+                                )}
+                            </div>
                         ) : item.status === 'cashed_out' ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>
                         ) : (
@@ -1041,6 +1094,8 @@ export default function App() {
                     
                     <div className="flex flex-col gap-1 mb-2">
                         <div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> Seller: {item.sellerName}</div>
+                        {/* MOBILE LOCATION DISPLAY - ADDED HERE */}
+                        <div className="text-xs text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location || '-'}</div>
                     </div>
 
                     <div className="flex justify-between items-end border-t border-pink-50 pt-2">
@@ -1067,7 +1122,11 @@ export default function App() {
                             </div>
                         )}
                         {item.status === 'dropped' && role === 'admin' && (
-                            <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
+                            <div className="flex gap-2">
+                                <button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button>
+                                {/* PULL OUT BUTTON (MOBILE) */}
+                                <button onClick={() => handleStatusChange(item.id, 'pulled_out')} className="bg-orange-100 text-orange-600 px-2 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-200"><PackageMinus className="w-4 h-4" /></button>
+                            </div>
                         )}
                         </div>
                     </div>
@@ -1076,7 +1135,7 @@ export default function App() {
 
               </div>
             ))}
-
+            
             {filteredItems.length === 0 && (
               <div className="p-12 text-center text-slate-400">
                 {role === 'buyer' && !searchTerm ? (
