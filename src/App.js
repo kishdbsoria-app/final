@@ -533,7 +533,7 @@ export default function App() {
     }
   };
 
-  // --- Filtering ---
+  // --- Filtering (Strict Privacy Logic + UPDATED LOCATION SEARCH) ---
 
   const filteredItems = useMemo(() => {
     if (role === 'buyer' && !searchTerm.trim()) {
@@ -561,12 +561,19 @@ export default function App() {
       }
 
       let matchesStatus = true;
-      if (statusFilter !== 'all') {
-        matchesStatus = item.status === statusFilter;
-      }
       
-      if (statusFilter === 'all' && item.status === 'cashed_out') {
-        matchesStatus = false;
+      // UPDATED FILTER LOGIC FOR ARCHIVE & PULL OUTS
+      if (statusFilter === 'all') {
+         // Hide archived types (Cashed Out OR Pulled Out) from main list
+         if (item.status === 'cashed_out' || item.status === 'pulled_out') {
+             matchesStatus = false;
+         }
+      } else if (statusFilter === 'cashed_out') {
+         // Show BOTH Cashed Out and Pulled Out in the "Archive" tab
+         matchesStatus = item.status === 'cashed_out' || item.status === 'pulled_out';
+      } else {
+         // Strict match for 'dropped' or 'claimed'
+         matchesStatus = item.status === statusFilter;
       }
 
       return matchesSearch && matchesStatus;
