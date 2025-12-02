@@ -45,9 +45,9 @@ import {
   RotateCcw,
   Check,
   PackageMinus,
-  ChevronLeft, // Added for Pagination
-  ArrowUpDown, // Added for Sorting
-  ListFilter // Added for Options
+  ChevronLeft, 
+  ArrowUpDown, 
+  ListFilter 
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -108,11 +108,11 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all'); 
   const [isFormOpen, setIsFormOpen] = useState(false);
   
-  // PAGINATION & SORTING STATE (NEW)
+  // PAGINATION & SORTING STATE
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [sortBy, setSortBy] = useState('date'); // date, name, location
-  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [sortBy, setSortBy] = useState('date'); 
+  const [sortOrder, setSortOrder] = useState('desc'); 
 
   // MASS ACTION STATE
   const [selectedItems, setSelectedItems] = useState(new Set()); 
@@ -186,7 +186,7 @@ export default function App() {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
-      // Default sort on load is irrelevant as we re-sort in UI, but good for initial state
+      // Default sort on load is irrelevant as we re-sort in UI
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
       setLoading(false);
@@ -218,7 +218,7 @@ export default function App() {
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       // Select all currently filtered items
-      const allIds = sortedItems.map(i => i.id); // Changed from filteredItems to sortedItems (visible)
+      const allIds = sortedItems.map(i => i.id); 
       setSelectedItems(new Set(allIds));
     } else {
       setSelectedItems(new Set());
@@ -539,7 +539,7 @@ export default function App() {
     }
   };
 
-  // --- FILTERING, SORTING & PAGINATION LOGIC (NEW) ---
+  // --- FILTERING, SORTING & PAGINATION LOGIC ---
 
   // 1. Filter
   const filteredItems = useMemo(() => {
@@ -584,7 +584,6 @@ export default function App() {
 
   // 2. Sort
   const sortedItems = useMemo(() => {
-    // Create a shallow copy to sort
     const sortable = [...filteredItems];
     
     sortable.sort((a, b) => {
@@ -620,7 +619,6 @@ export default function App() {
 
   const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, sortBy, sortOrder, itemsPerPage]);
@@ -760,7 +758,6 @@ export default function App() {
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
-            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
@@ -772,7 +769,6 @@ export default function App() {
 
         {/* Filters & Controls */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100 mb-6 flex flex-col gap-4">
-            {/* Top Row: Search & Status Filters */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="relative flex-1 w-full">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -791,7 +787,6 @@ export default function App() {
                 </div>
             </div>
             
-            {/* Bottom Row: Sorting & View Options */}
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center border-t border-slate-100 pt-4">
                 <div className="flex items-center gap-2 text-sm text-slate-500">
                    <ListFilter className="w-4 h-4" />
@@ -804,7 +799,6 @@ export default function App() {
                    <button onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="p-1 hover:bg-slate-100 rounded" title={sortOrder === 'asc' ? "Ascending (A-Z)" : "Descending (Z-A)"}>
                       <ArrowUpDown className="w-4 h-4" />
                    </button>
-                   <span className="ml-2 text-xs text-slate-400">{sortOrder === 'asc' ? '(Oldest/A-Z)' : '(Newest/Z-A)'}</span>
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -848,7 +842,6 @@ export default function App() {
                               <button onClick={() => handleStatusChange(item.id, 'pulled_out')} className="p-1 hover:bg-orange-100 rounded text-orange-600" title="Admin: Pull Out Item"><PackageMinus className="w-5 h-5" /></button>
                             </div>
                         )}
-                        {role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'cancelled')} className="text-xs text-red-400 hover:text-red-600 hover:underline ml-2">Cancel</button>}
                       </>) : item.status === 'claimed' ? (
                       <div className="flex flex-col items-end"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><CalendarCheck className="w-3 h-3" /> {item.claimedAt.toLocaleDateString()}</span>}{role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'dropped')} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1" title="Undo / Revert to Ready"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>
                     ) : item.status === 'pulled_out' ? (
@@ -885,7 +878,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* PAGINATION CONTROLS (NEW) */}
+        {/* PAGINATION CONTROLS */}
         {sortedItems.length > itemsPerPage && (
             <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-pink-100">
                 <button 
@@ -907,7 +900,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- MODAL: DROP ITEM (ADMIN ONLY NOW) --- */}
+      {/* --- MODAL: DROP ITEM --- */}
       {isFormOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl">
@@ -916,7 +909,7 @@ export default function App() {
               <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
             
-            {/* SUCCESS MESSAGE (RAPID ENTRY) */}
+            {/* SUCCESS MESSAGE */}
             {showSuccessMsg && (
                 <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
                     <Check className="w-4 h-4" /> Item added successfully!
@@ -924,6 +917,8 @@ export default function App() {
             )}
 
             <form onSubmit={handleAddItem} className="space-y-4">
+              
+              {/* NEW: SELLER SELECTION */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Select Seller</label>
                 <select 
@@ -937,21 +932,41 @@ export default function App() {
                   ))}
                 </select>
               </div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label><input required type="text" placeholder="e.g. White Dress" value={newItemItem} onChange={(e) => setNewItemItem(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Buyer Name</label><input required type="text" placeholder="e.g. Maria Cruz" value={newItemBuyer} onChange={(e) => setNewItemBuyer(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" /></div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label>
+                <input required type="text" placeholder="e.g. White Dress" value={newItemItem} onChange={(e) => setNewItemItem(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Buyer Name</label>
+                <input required type="text" placeholder="e.g. Maria Cruz" value={newItemBuyer} onChange={(e) => setNewItemBuyer(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" placeholder="e.g. 500" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label><input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
+                    <input type="text" placeholder="e.g. 500" value={newItemPrice} onChange={(e) => setNewItemPrice(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    <input type="text" placeholder="e.g. 10" value={newItemTransferFee} onChange={(e) => setNewItemTransferFee(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none" />
+                  </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                <select value={newItemLocation} onChange={(e) => setNewItemLocation(e.target.value)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white">
-                  {LU_TOWNS.map(town => (<option key={town} value={town}>{town}</option>))}
+                <select 
+                  value={newItemLocation}
+                  onChange={(e) => setNewItemLocation(e.target.value)}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white"
+                >
+                  {LU_TOWNS.map(town => (
+                    <option key={town} value={town}>{town}</option>
+                  ))}
                 </select>
               </div>
+              
               <div className="flex gap-2">
                   <button type="submit" className="flex-1 py-3 bg-pink-600 text-white rounded-lg font-semibold hover:bg-pink-700 shadow-md shadow-pink-200">Confirm Drop</button>
-                  <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-3 bg-slate-100 text-slate-600 rounded-lg font-semibold hover:bg-slate-200">Done</button>
+                  <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-3 bg-slate-100 text-slate-600 rounded-lg font-semibold hover:bg-slate-200">Done / Close</button>
               </div>
             </form>
           </div>
@@ -962,27 +977,79 @@ export default function App() {
       {isEditModalOpen && editingItem && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-800">Edit Item</h3><button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button></div>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-slate-800">Edit Item</h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
+            </div>
             <form onSubmit={handleUpdateItem} className="space-y-4">
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label><input type="text" value={editingItem.itemName} onChange={(e) => setEditingItem({...editingItem, itemName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Buyer Name</label><input type="text" value={editingItem.buyerName} onChange={(e) => setEditingItem({...editingItem, buyerName: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" /></div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Item Name</label>
+                <input 
+                  type="text" 
+                  value={editingItem.itemName} 
+                  onChange={(e) => setEditingItem({...editingItem, itemName: e.target.value})} 
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Buyer Name</label>
+                <input 
+                  type="text" 
+                  value={editingItem.buyerName} 
+                  onChange={(e) => setEditingItem({...editingItem, buyerName: e.target.value})} 
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                />
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Price</label><input type="text" value={editingItem.price} onChange={(e) => setEditingItem({...editingItem, price: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label><input type="text" value={editingItem.transferFee || '0'} onChange={(e) => setEditingItem({...editingItem, transferFee: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Price</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.price} 
+                      onChange={(e) => setEditingItem({...editingItem, price: e.target.value})} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transfer Fee</label>
+                    <input 
+                      type="text" 
+                      value={editingItem.transferFee || '0'} 
+                      onChange={(e) => setEditingItem({...editingItem, transferFee: e.target.value})} 
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" 
+                    />
+                  </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
-                <select value={editingItem.location || 'SFC'} onChange={(e) => setEditingItem({...editingItem, location: e.target.value})} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white">
-                  {LU_TOWNS.map(town => (<option key={town} value={town}>{town}</option>))}
+                <select 
+                  value={editingItem.location || 'SFC'}
+                  onChange={(e) => setEditingItem({...editingItem, location: e.target.value})}
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
+                >
+                  {LU_TOWNS.map(town => (
+                    <option key={town} value={town}>{town}</option>
+                  ))}
                 </select>
               </div>
+
+              {/* NEW: MARK AS PAID EXTERNALLY */}
               <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl flex items-center justify-between">
-                 <div><div className="font-semibold text-yellow-800 text-sm">Payment Received Outside?</div><div className="text-xs text-yellow-600">Toggle this if buyer paid directly.</div></div>
+                 <div>
+                    <div className="font-semibold text-yellow-800 text-sm">Payment Received Outside?</div>
+                    <div className="text-xs text-yellow-600">Toggle this if buyer paid directly.</div>
+                 </div>
                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={editingItem.isPaidExternally || false} onChange={(e) => setEditingItem({...editingItem, isPaidExternally: e.target.checked})}/>
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={editingItem.isPaidExternally || false}
+                      onChange={(e) => setEditingItem({...editingItem, isPaidExternally: e.target.checked})}
+                    />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
                  </label>
               </div>
+
               <button type="submit" className="w-full py-3 bg-purple-800 text-white rounded-lg font-semibold hover:bg-purple-900 shadow-md">Update Item</button>
             </form>
           </div>
@@ -994,26 +1061,85 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl my-8">
             <div className="p-6 border-b border-pink-100 flex justify-between items-center">
-                <div className="flex items-center gap-2"><Users className="text-purple-800 w-6 h-6" /><div><h3 className="text-xl font-bold text-slate-800">Manage Users</h3><p className="text-sm text-slate-500">Reset passwords or remove inactive sellers</p></div></div>
+                <div className="flex items-center gap-2">
+                    <Users className="text-purple-800 w-6 h-6" />
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Manage Users</h3>
+                      <p className="text-sm text-slate-500">Reset passwords or remove inactive sellers</p>
+                    </div>
+                </div>
                 <button onClick={() => setIsUserMgmtOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
+
+            {/* NEW: ADD SELLER FORM INSIDE MODAL */}
             <div className="p-6 bg-pink-50 border-b border-pink-100">
-               <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2"><UserPlus className="w-4 h-4" /> Add New Seller</h4>
+               <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" /> Add New Seller
+               </h4>
                <form onSubmit={handleCreateUser} className="flex flex-col sm:flex-row gap-3">
-                  <input type="text" placeholder="Shop Name" value={newSellerName} onChange={(e) => setNewSellerName(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"/>
-                  <input type="text" placeholder="Initial Password" value={newSellerPass} onChange={(e) => setNewSellerPass(e.target.value)} className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"/>
-                  <button type="submit" className="bg-purple-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-900 transition-colors">Add Seller</button>
+                  <input 
+                    type="text" 
+                    placeholder="Shop Name" 
+                    value={newSellerName}
+                    onChange={(e) => setNewSellerName(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Initial Password" 
+                    value={newSellerPass}
+                    onChange={(e) => setNewSellerPass(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-purple-800 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-900 transition-colors"
+                  >
+                    Add Seller
+                  </button>
                </form>
             </div>
+
             <div className="p-6">
                <div className="text-xs font-semibold text-slate-400 uppercase mb-3">Registered Sellers</div>
                <div className="space-y-2">
-                   {sellerList.length === 0 ? (<div className="text-center py-10 text-slate-400">No sellers found.</div>) : (sellerList.map((seller) => (
-                           <div key={seller.id} className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group">
-                               <div className="flex items-center gap-3"><div className="bg-pink-100 p-2 rounded-full text-pink-600 font-bold w-10 h-10 flex items-center justify-center group-hover:bg-pink-200"><User className="w-5 h-5" /></div><div className="text-left"><div className="font-bold text-slate-800">{seller.displayName}</div><div className="text-xs text-slate-500">ID: {seller.id}</div></div></div>
-                               <div className="flex items-center gap-2"><button onClick={() => handleResetPassword(seller.id, seller.displayName)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Reset Password"><KeyRound className="w-5 h-5" /></button><button onClick={() => handleDeleteUser(seller.id, seller.displayName)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remove Access"><Trash2 className="w-5 h-5" /></button></div>
+                   {sellerList.length === 0 ? (
+                       <div className="text-center py-10 text-slate-400">No sellers found.</div>
+                   ) : (
+                       sellerList.map((seller) => (
+                           <div 
+                             key={seller.id} 
+                             className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group"
+                           >
+                               <div className="flex items-center gap-3">
+                                   <div className="bg-pink-100 p-2 rounded-full text-pink-600 font-bold w-10 h-10 flex items-center justify-center group-hover:bg-pink-200">
+                                      <User className="w-5 h-5" />
+                                   </div>
+                                   <div className="text-left">
+                                       <div className="font-bold text-slate-800">{seller.displayName}</div>
+                                       <div className="text-xs text-slate-500">ID: {seller.id}</div>
+                                   </div>
+                               </div>
+                               
+                               <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => handleResetPassword(seller.id, seller.displayName)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Reset Password"
+                                  >
+                                    <KeyRound className="w-5 h-5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteUser(seller.id, seller.displayName)}
+                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove Access"
+                                  >
+                                    <Trash2 className="w-5 h-5" />
+                                  </button>
+                               </div>
                            </div>
-                       )))}
+                       ))
+                   )}
                </div>
             </div>
           </div>
@@ -1024,33 +1150,101 @@ export default function App() {
       {isCashOutModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl my-8">
-            <div className="p-6 border-b border-pink-100 flex justify-between items-center"><div><h3 className="text-xl font-bold text-slate-800">Admin Cash Out</h3><p className="text-sm text-slate-500">{selectedSellerForCashout ? `Invoice for ${selectedSellerForCashout.name}` : 'Select a seller to pay out'}</p></div><button onClick={() => { setIsCashOutModalOpen(false); setSelectedSellerForCashout(null); }} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button></div>
+            <div className="p-6 border-b border-pink-100 flex justify-between items-center">
+                <div>
+                    <h3 className="text-xl font-bold text-slate-800">Admin Cash Out</h3>
+                    <p className="text-sm text-slate-500">{selectedSellerForCashout ? `Invoice for ${selectedSellerForCashout.name}` : 'Select a seller to pay out'}</p>
+                </div>
+                <button onClick={() => { setIsCashOutModalOpen(false); setSelectedSellerForCashout(null); }} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
+            </div>
+
             {!selectedSellerForCashout && (
-                <div className="p-6"><div className="space-y-2">{sellersWithBalance.length === 0 ? (<div className="text-center py-10 text-slate-400">No pending balances found.</div>) : (sellersWithBalance.map((seller, idx) => (
-                               <button key={idx} onClick={() => setSelectedSellerForCashout(seller)} className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group">
-                                   <div className="flex items-center gap-3"><div className="bg-pink-100 p-2 rounded-full text-pink-600 font-bold w-10 h-10 flex items-center justify-center group-hover:bg-pink-200">₱</div><div className="text-left"><div className="font-bold text-slate-800">{seller.name}</div><div className="text-xs text-slate-500">{seller.items.length} items to claim</div></div></div>
+                <div className="p-6">
+                   <div className="space-y-2">
+                       {sellersWithBalance.length === 0 ? (
+                           <div className="text-center py-10 text-slate-400">No pending balances found.</div>
+                       ) : (
+                           sellersWithBalance.map((seller, idx) => (
+                               <button 
+                                 key={idx} 
+                                 onClick={() => setSelectedSellerForCashout(seller)}
+                                 className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group"
+                               >
+                                   <div className="flex items-center gap-3">
+                                       <div className="bg-pink-100 p-2 rounded-full text-pink-600 font-bold w-10 h-10 flex items-center justify-center group-hover:bg-pink-200">₱</div>
+                                       <div className="text-left">
+                                           <div className="font-bold text-slate-800">{seller.name}</div>
+                                           <div className="text-xs text-slate-500">{seller.items.length} items to claim</div>
+                                       </div>
+                                   </div>
                                    <div className="font-bold text-lg text-purple-600">₱{seller.total}</div>
                                </button>
-                           )))}</div></div>
+                           ))
+                       )}
+                   </div>
+                </div>
             )}
+
             {selectedSellerForCashout && (
                 <div className="p-8">
-                    <div className="text-center mb-8"><h1 className="text-2xl font-bold text-purple-800">{APP_NAME}</h1><p className="text-sm text-pink-600">Cash Out Receipt / Invoice</p><p className="text-xs text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p></div>
-                    <div className="bg-fuchsia-50 p-4 rounded-lg border border-pink-100 mb-6"><div className="flex justify-between mb-2"><span className="text-slate-500">Seller Name:</span><span className="font-bold text-lg text-slate-800">{selectedSellerForCashout.name}</span></div><div className="flex justify-between"><span className="text-slate-500">Transaction ID:</span><span className="font-mono text-xs text-purple-600">{selectedSellerForCashout.items[0]?.id.substring(0,8).toUpperCase()}...</span></div></div>
+                    <div className="text-center mb-8">
+                        <h1 className="text-2xl font-bold text-purple-800">{APP_NAME}</h1>
+                        <p className="text-sm text-pink-600">Cash Out Receipt / Invoice</p>
+                        <p className="text-xs text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p>
+                    </div>
+
+                    <div className="bg-fuchsia-50 p-4 rounded-lg border border-pink-100 mb-6">
+                        <div className="flex justify-between mb-2">
+                            <span className="text-slate-500">Seller Name:</span>
+                            <span className="font-bold text-lg text-slate-800">{selectedSellerForCashout.name}</span>
+                        </div>
+                        <div className="flex justify-between">
+                             <span className="text-slate-500">Transaction ID:</span>
+                             <span className="font-mono text-xs text-purple-600">{selectedSellerForCashout.items[0]?.id.substring(0,8).toUpperCase()}...</span>
+                        </div>
+                    </div>
+
                     <table className="w-full mb-6 text-sm">
-                        <thead><tr className="border-b-2 border-pink-100 text-left"><th className="py-2 text-slate-500">Item</th><th className="py-2 text-slate-500">Buyer</th><th className="py-2 text-slate-500 text-right">Fee</th><th className="py-2 text-slate-500 text-right">Price</th></tr></thead>
-                        <tbody className="divide-y divide-pink-50">{selectedSellerForCashout.items.map(item => (<tr key={item.id}><td className="py-2 text-slate-700">{item.itemName}</td><td className="py-2 text-slate-500">{item.buyerName}</td><td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td><td className="py-2 text-right font-medium text-purple-700">{item.isPaidExternally ? <span className="text-gray-400 line-through decoration-double">({item.price})</span> : `₱${item.price}`}</td></tr>))}</tbody>
-                        <tfoot><tr className="border-t-2 border-slate-800"><td colSpan="3" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td><td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td></tr></tfoot>
+                        <thead>
+                            <tr className="border-b-2 border-pink-100 text-left"><th className="py-2 text-slate-500">Item</th><th className="py-2 text-slate-500">Buyer</th><th className="py-2 text-slate-500 text-right">Fee</th><th className="py-2 text-slate-500 text-right">Price</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-pink-50">
+                            {selectedSellerForCashout.items.map(item => (
+                                <tr key={item.id}>
+                                    <td className="py-2 text-slate-700">{item.itemName}</td>
+                                    <td className="py-2 text-slate-500">{item.buyerName}</td>
+                                    <td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td>
+                                    <td className="py-2 text-right font-medium text-purple-700">
+                                        {item.isPaidExternally ? <span className="text-gray-400 line-through decoration-double">({item.price})</span> : `₱${item.price}`}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr className="border-t-2 border-slate-800">
+                                <td colSpan="3" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
+                                <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
+                            </tr>
+                        </tfoot>
                     </table>
+
                     <div className="flex gap-3 justify-end mt-6 border-t border-pink-100 pt-6">
                          <button onClick={() => setSelectedSellerForCashout(null)} className="px-4 py-2 text-slate-500 hover:text-pink-600">Back</button>
-                         <button onClick={confirmCashOutForSeller} disabled={isProcessing} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 shadow-md shadow-purple-200"><CheckCircle2 className="w-4 h-4" /> {isProcessing ? 'Processing...' : 'Confirm & Archive'}</button>
+                         <button 
+                            onClick={confirmCashOutForSeller} 
+                            disabled={isProcessing}
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 shadow-md shadow-purple-200"
+                         >
+                            <CheckCircle2 className="w-4 h-4" /> 
+                            {isProcessing ? 'Processing...' : 'Confirm & Archive'}
+                         </button>
                     </div>
                 </div>
             )}
           </div>
         </div>
       )}
+
     </div>
   );
 }
