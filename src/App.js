@@ -48,7 +48,7 @@ import {
   ChevronLeft, 
   ArrowUpDown, 
   ListFilter,
-  FileDown // Added Export Icon
+  FileDown 
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -181,6 +181,10 @@ export default function App() {
       if (savedRole && savedName) {
         setRole(savedRole);
         setUserName(savedName);
+        // NEW: If they are a buyer, auto-populate the search term on refresh/load
+        if (savedRole === 'buyer') {
+          setSearchTerm(savedName);
+        }
       }
     });
     return () => unsubscribe();
@@ -316,9 +320,6 @@ export default function App() {
     a.download = `KishDBSoria_Export_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    
-    // Optional: Clear selection after export? Let's keep it in case they want to delete next.
-    // setSelectedItems(new Set());
   };
 
 
@@ -370,6 +371,12 @@ export default function App() {
     setUserName(newName);
     localStorage.setItem('la_union_role', newRole);
     localStorage.setItem('la_union_name', newName);
+    
+    // NEW: If buyer, auto-populate the search term so they don't have to type it again
+    if (newRole === 'buyer') {
+      setSearchTerm(newName);
+    }
+
     setLoginMode('menu');
     setLoginInputName('');
     setLoginInputPass('');
@@ -385,6 +392,8 @@ export default function App() {
     setSelectedSellerForCashout(null);
     setIsUserMgmtOpen(false);
     setSelectedItems(new Set()); 
+    // Clear search term on logout so next user starts fresh
+    setSearchTerm(''); 
   };
 
   // --- Data Handlers ---
