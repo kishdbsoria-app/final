@@ -109,7 +109,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all'); 
   const [isFormOpen, setIsFormOpen] = useState(false);
   
-  // PAGINATION & SORTING STATE
+  // PAGINATION & SORTING STATE (MAIN LIST)
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortBy, setSortBy] = useState('date'); 
@@ -126,6 +126,11 @@ export default function App() {
   const [isUserMgmtOpen, setIsUserMgmtOpen] = useState(false); 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false); 
+
+  // CASH OUT SEARCH & PAGINATION (NEW)
+  const [cashOutSearchTerm, setCashOutSearchTerm] = useState('');
+  const [cashOutPage, setCashOutPage] = useState(1);
+  const CASH_OUT_ITEMS_PER_PAGE = 10;
 
   // Login UI State
   const [loginMode, setLoginMode] = useState('menu'); 
@@ -394,6 +399,9 @@ export default function App() {
     setSelectedItems(new Set()); 
     // Clear search term on logout so next user starts fresh
     setSearchTerm(''); 
+    // Reset pagination states
+    setCashOutSearchTerm('');
+    setCashOutPage(1);
   };
 
   // --- Data Handlers ---
@@ -566,8 +574,36 @@ export default function App() {
         }
       }
     });
-    return Object.values(groups);
+    // Sort by name alphabetically by default
+    return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
   }, [items, role]);
+
+  // Filter & Paginate Cash Out List
+  const filteredCashOutSellers = useMemo(() => {
+    let result = sellersWithBalance;
+
+    // Filter by search term
+    if (cashOutSearchTerm.trim()) {
+      const lowerTerm = cashOutSearchTerm.toLowerCase();
+      result = result.filter(seller => seller.name.toLowerCase().includes(lowerTerm));
+    }
+    
+    return result;
+  }, [sellersWithBalance, cashOutSearchTerm]);
+
+  const paginatedCashOutSellers = useMemo(() => {
+    const startIndex = (cashOutPage - 1) * CASH_OUT_ITEMS_PER_PAGE;
+    return filteredCashOutSellers.slice(startIndex, startIndex + CASH_OUT_ITEMS_PER_PAGE);
+  }, [filteredCashOutSellers, cashOutPage]);
+
+  const totalCashOutPages = Math.ceil(filteredCashOutSellers.length / CASH_OUT_ITEMS_PER_PAGE);
+
+  // Reset cash out page when search changes
+  useEffect(() => {
+    if (isCashOutModalOpen) {
+        setCashOutPage(1);
+    }
+  }, [cashOutSearchTerm, isCashOutModalOpen]);
 
   const confirmCashOutForSeller = async () => {
     if (!selectedSellerForCashout) return;
@@ -693,7 +729,6 @@ export default function App() {
 
   const stats = useMemo(() => {
     let viewableItems = items;
-    
     if (role === 'seller') {
         viewableItems = items.filter(i => i.sellerName === userName);
     } else if (role === 'buyer') {
@@ -1304,11 +1339,24 @@ export default function App() {
 
             {!selectedSellerForCashout && (
                 <div className="p-6">
+                   <div className="flex items-center gap-4 mb-4">
+                     <div className="relative flex-1">
+                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                       <input 
+                         type="text" 
+                         placeholder="Search seller..." 
+                         value={cashOutSearchTerm}
+                         onChange={(e) => setCashOutSearchTerm(e.target.value)}
+                         className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                       />
+                     </div>
+                   </div>
+                   
                    <div className="space-y-2">
-                       {sellersWithBalance.length === 0 ? (
+                       {paginatedCashOutSellers.length === 0 ? (
                            <div className="text-center py-10 text-slate-400">No pending balances found.</div>
                        ) : (
-                           sellersWithBalance.map((seller, idx) => (
+                           paginatedCashOutSellers.map((seller, idx) => (
                                <button 
                                  key={idx} 
                                  onClick={() => setSelectedSellerForCashout(seller)}
@@ -1326,6 +1374,27 @@ export default function App() {
                            ))
                        )}
                    </div>
+
+                   {/* Cash Out Pagination */}
+                   {filteredCashOutSellers.length > CASH_OUT_ITEMS_PER_PAGE && (
+                      <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
+                        <button 
+                          onClick={() => setCashOutPage(p => Math.max(1, p - 1))}
+                          disabled={cashOutPage === 1}
+                          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-purple-700"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs text-slate-500 font-medium">Page {cashOutPage} of {totalCashOutPages}</span>
+                        <button 
+                          onClick={() => setCashOutPage(p => Math.min(totalCashOutPages, p + 1))}
+                          disabled={cashOutPage === totalCashOutPages}
+                          className="p-2 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed text-purple-700"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                   )}
                 </div>
             )}
 
