@@ -693,17 +693,32 @@ export default function App() {
 
   const stats = useMemo(() => {
     let viewableItems = items;
+    
     if (role === 'seller') {
         viewableItems = items.filter(i => i.sellerName === userName);
     } else if (role === 'buyer') {
         viewableItems = []; 
     }
     
+    // NEW: Calculate Balance for Sellers (Claimed + Not Paid Externally)
+    let availableBalance = 0;
+    if (role === 'seller') {
+        availableBalance = viewableItems.reduce((sum, item) => {
+            if (item.status === 'claimed' && !item.isPaidExternally) {
+                 const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+                 const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
+                 return sum + price + fee;
+            }
+            return sum;
+        }, 0);
+    }
+    
     return {
       total: viewableItems.length,
       dropped: viewableItems.filter(i => i.status === 'dropped').length,
       claimed: viewableItems.filter(i => i.status === 'claimed').length,
-      cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length
+      cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length,
+      balance: availableBalance // Added balance to stats
     };
   }, [items, role, userName]);
 
@@ -845,14 +860,34 @@ export default function App() {
         {role !== 'buyer' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100">
-              {role === 'seller' ? (<><div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div><div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div></>) : (<><div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div><div className="text-2xl font-bold text-slate-800">{items.length}</div></>)}
+              {role === 'seller' ? (
+                  <>
+                      <div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div>
+                      <div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div>
+                  </>
+              ) : (
+                  <>
+                      <div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div>
+                      <div className="text-2xl font-bold text-slate-800">{items.length}</div>
+                  </>
+              )}
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
+            
+            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
                 <button onClick={() => setIsFormOpen(true)} className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"><Plus className="w-5 h-5" /></button>
+              </div>
+            )}
+
+            {/* SELLER BALANCE CARD */}
+            {role === 'seller' && (
+              <div className="bg-emerald-50 p-4 rounded-xl shadow-sm border border-emerald-200">
+                <div className="text-emerald-700 text-xs font-semibold uppercase">Available for Cash Out</div>
+                <div className="text-2xl font-bold text-emerald-600">₱{stats.balance.toLocaleString()}</div>
               </div>
             )}
           </div>
