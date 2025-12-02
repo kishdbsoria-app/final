@@ -147,6 +147,16 @@ export default function App() {
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
 
+  // --- HELPER: DATE FORMATTER (MM/DD/YY) ---
+  const formatDate = (date) => {
+    if (!date) return '';
+    return date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit'
+    });
+  };
+
   // --- Auth & Data Effects ---
 
   useEffect(() => {
@@ -435,6 +445,7 @@ export default function App() {
   };
 
   const handleDeleteUser = async (sellerId, sellerName) => {
+    // SECURITY CHECK: REQUIRE ADMIN PIN
     const pin = prompt(`⚠️ WARNING ⚠️\n\nYou are about to remove access for ${sellerName}.\n\nPlease enter the Admin PIN to confirm:`);
     
     if (pin !== ADMIN_PIN) {
@@ -740,9 +751,33 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-                {role === 'admin' && <button onClick={() => setIsUserMgmtOpen(true)} className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors" title="Manage Users"><Users className="w-5 h-5" /></button>}
-                {role === 'admin' && <button onClick={() => setIsCashOutModalOpen(true)} className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"><Banknote className="w-4 h-4" /><span className="hidden sm:inline">Admin Cash Out</span></button>}
-                <button onClick={handleLogout} className="text-slate-400 hover:text-pink-600 transition-colors p-2" title="Logout"><LogOut className="w-5 h-5" /></button>
+                {/* NEW: USER MANAGEMENT BUTTON (Admin Only) */}
+                {role === 'admin' && (
+                    <button 
+                        onClick={() => setIsUserMgmtOpen(true)}
+                        className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                        title="Manage Users"
+                    >
+                        <Users className="w-5 h-5" />
+                    </button>
+                )}
+
+                {role === 'admin' && (
+                    <button 
+                        onClick={() => setIsCashOutModalOpen(true)}
+                        className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
+                    >
+                        <Banknote className="w-4 h-4" />
+                        <span className="hidden sm:inline">Admin Cash Out</span>
+                    </button>
+                )}
+                <button 
+                onClick={handleLogout}
+                className="text-slate-400 hover:text-pink-600 transition-colors p-2"
+                title="Logout"
+                >
+                <LogOut className="w-5 h-5" />
+                </button>
             </div>
           </div>
         </div>
@@ -767,7 +802,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Filters & Controls */}
+        {/* Filters */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100 mb-6 flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="relative flex-1 w-full">
@@ -824,48 +859,55 @@ export default function App() {
 
           <div className="divide-y divide-pink-50">
             {paginatedItems.map((item) => (
-              <div key={item.id} className="group hover:bg-fuchsia-50 transition-colors">
+              <div 
+                key={item.id} 
+                className={`group hover:bg-fuchsia-50 transition-colors ${role === 'admin' ? 'cursor-pointer' : ''}`}
+                onClick={() => role === 'admin' && handleEditClick(item)}
+              >
                 <div className="hidden md:grid grid-cols-8 gap-4 p-4 items-center">
-                  <div className="col-span-1">{role === 'admin' && <input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => handleSelectItem(item.id)} className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"/>}</div>
-                  <div className="col-span-1 text-sm text-slate-500">{item.createdAt.toLocaleDateString()}<div className="text-xs text-slate-400">{item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div></div>
+                  <div className="col-span-1">{role === 'admin' && <input type="checkbox" checked={selectedItems.has(item.id)} onClick={(e) => e.stopPropagation()} onChange={() => handleSelectItem(item.id)} className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"/>}</div>
+                  <div className="col-span-1 text-sm text-slate-500">{formatDate(item.createdAt)}<div className="text-xs text-slate-400">{item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div></div>
                   <div className="col-span-2"><div className="text-sm font-medium text-slate-800">{item.itemName}</div>{role !== 'buyer' && <div><div className={`text-xs ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-slate-500'}`}>{item.isPaidExternally ? `(${item.price})` : `Price: ${item.price}`}</div>{item.transferFee && item.transferFee !== '0' && <div className="text-xs text-pink-500">Fee: {item.transferFee}</div>}</div>}</div>
                   <div className="col-span-1 text-sm text-slate-600 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /> {item.location || '-'}</div>
                   <div className="col-span-1 text-sm text-slate-600">{item.buyerName}</div>
                   <div className="col-span-1 text-sm text-slate-600">{item.sellerName}</div>
                   <div className="col-span-1 text-right flex items-center justify-end gap-2">
-                    {role === 'admin' && <button onClick={() => handleEditClick(item)} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit Item"><Pencil className="w-4 h-4" /></button>}
+                    {role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleEditClick(item); }} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit Item"><Pencil className="w-4 h-4" /></button>}
                     {item.status === 'dropped' ? (
                       <><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
                         {role === 'admin' && (
                             <div className="flex gap-1">
-                              <button onClick={() => handleStatusChange(item.id, 'claimed')} className="p-1 hover:bg-purple-100 rounded text-purple-600" title="Admin: Mark Claimed"><CheckCircle2 className="w-5 h-5" /></button>
-                              <button onClick={() => handleStatusChange(item.id, 'pulled_out')} className="p-1 hover:bg-orange-100 rounded text-orange-600" title="Admin: Pull Out Item"><PackageMinus className="w-5 h-5" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'claimed'); }} className="p-1 hover:bg-purple-100 rounded text-purple-600" title="Admin: Mark Claimed"><CheckCircle2 className="w-5 h-5" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'pulled_out'); }} className="p-1 hover:bg-orange-100 rounded text-orange-600" title="Admin: Pull Out Item"><PackageMinus className="w-5 h-5" /></button>
                             </div>
                         )}
                       </>) : item.status === 'claimed' ? (
-                      <div className="flex flex-col items-end"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><CalendarCheck className="w-3 h-3" /> {item.claimedAt.toLocaleDateString()}</span>}{role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'dropped')} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1" title="Undo / Revert to Ready"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>
+                      <div className="flex flex-col items-end"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <span className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><CalendarCheck className="w-3 h-3" /> {formatDate(item.claimedAt)}</span>}{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1" title="Undo / Revert to Ready"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>
                     ) : item.status === 'pulled_out' ? (
-                        <div className="flex flex-col items-end"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'dropped')} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1" title="Undo / Revert to Ready"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>
+                        <div className="flex flex-col items-end"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center gap-1" title="Undo / Revert to Ready"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>
                     ) : item.status === 'cashed_out' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Cashed Out</span>) : (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>)}
                   </div>
                 </div>
-                <div className="md:hidden p-4 flex gap-3">
-                   {role === 'admin' && <div className="pt-1"><input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => handleSelectItem(item.id)} className="w-5 h-5 text-pink-600 rounded border-gray-300 focus:ring-pink-500"/></div>}
+                <div 
+                  className={`md:hidden p-4 flex gap-3 ${role === 'admin' ? 'cursor-pointer' : ''}`}
+                  onClick={() => role === 'admin' && handleEditClick(item)}
+                >
+                   {role === 'admin' && <div className="pt-1"><input type="checkbox" checked={selectedItems.has(item.id)} onClick={(e) => e.stopPropagation()} onChange={() => handleSelectItem(item.id)} className="w-5 h-5 text-pink-600 rounded border-gray-300 focus:ring-pink-500"/></div>}
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-2">
                         <div><h4 className="font-semibold text-slate-800">{item.itemName}</h4><p className="text-sm text-slate-500">Buyer: <span className="text-slate-700 font-medium">{item.buyerName}</span></p></div>
-                        {item.status === 'dropped' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>) : item.status === 'claimed' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <div className="text-[10px] text-slate-400 mt-1">{item.claimedAt.toLocaleDateString()}</div>}{role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'dropped')} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'pulled_out' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={() => handleStatusChange(item.id, 'dropped')} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'cashed_out' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>) : (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>)}
+                        {item.status === 'dropped' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>) : item.status === 'claimed' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <div className="text-[10px] text-slate-400 mt-1">{formatDate(item.claimedAt)}</div>}{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'pulled_out' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'cashed_out' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>) : (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>)}
                     </div>
                     <div className="flex flex-col gap-1 mb-2">
                         <div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> Seller: {item.sellerName}</div>
                         <div className="text-xs text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location || '-'}</div>
                     </div>
                     <div className="flex justify-between items-end border-t border-pink-50 pt-2">
-                        <div className="text-xs text-slate-400">{item.createdAt.toLocaleDateString()}</div>
+                        <div className="text-xs text-slate-400">{formatDate(item.createdAt)}</div>
                         <div className="flex items-center gap-2">
-                        {role === 'admin' && <button onClick={() => handleEditClick(item)} className="p-1 mr-2 text-slate-400"><Pencil className="w-4 h-4" /></button>}
+                        {role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleEditClick(item); }} className="p-1 mr-2 text-slate-400"><Pencil className="w-4 h-4" /></button>}
                         {role !== 'buyer' && (<div className="text-right mr-2"><span className={`text-sm font-semibold ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>{item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}</span>{item.transferFee && item.transferFee !== '0' && <div className="text-[10px] text-pink-500">Fee: {item.transferFee}</div>}</div>)}
-                        {item.status === 'dropped' && role === 'admin' && (<div className="flex gap-2"><button onClick={() => handleStatusChange(item.id, 'claimed')} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button><button onClick={() => handleStatusChange(item.id, 'pulled_out')} className="bg-orange-100 text-orange-600 px-2 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-200"><PackageMinus className="w-4 h-4" /></button></div>)}
+                        {item.status === 'dropped' && role === 'admin' && (<div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'claimed'); }} className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700">Mark Claimed</button><button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'pulled_out'); }} className="bg-orange-100 text-orange-600 px-2 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-200"><PackageMinus className="w-4 h-4" /></button></div>)}
                         </div>
                     </div>
                   </div>
@@ -900,7 +942,7 @@ export default function App() {
         )}
       </main>
 
-      {/* --- MODAL: DROP ITEM --- */}
+      {/* --- MODAL: DROP ITEM (ADMIN ONLY NOW) --- */}
       {isFormOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl">
@@ -909,7 +951,7 @@ export default function App() {
               <button onClick={() => setIsFormOpen(false)} className="text-slate-400 hover:text-pink-600"><XCircle className="w-6 h-6" /></button>
             </div>
             
-            {/* SUCCESS MESSAGE */}
+            {/* SUCCESS MESSAGE (RAPID ENTRY) */}
             {showSuccessMsg && (
                 <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
                     <Check className="w-4 h-4" /> Item added successfully!
@@ -918,7 +960,7 @@ export default function App() {
 
             <form onSubmit={handleAddItem} className="space-y-4">
               
-              {/* NEW: SELLER SELECTION */}
+              {/* NEW: SELLER SELECTION (ADMIN ONLY) */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Select Seller</label>
                 <select 
