@@ -127,7 +127,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccessMsg, setShowSuccessMsg] = useState(false); 
 
-  // CASH OUT SEARCH & PAGINATION (NEW)
+  // CASH OUT SEARCH & PAGINATION
   const [cashOutSearchTerm, setCashOutSearchTerm] = useState('');
   const [cashOutPage, setCashOutPage] = useState(1);
   const CASH_OUT_ITEMS_PER_PAGE = 10;
@@ -186,7 +186,6 @@ export default function App() {
       if (savedRole && savedName) {
         setRole(savedRole);
         setUserName(savedName);
-        // NEW: If they are a buyer, auto-populate the search term on refresh/load
         if (savedRole === 'buyer') {
           setSearchTerm(savedName);
         }
@@ -206,7 +205,6 @@ export default function App() {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
-      // Default sort on load is irrelevant as we re-sort in UI
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
       setLoading(false);
@@ -237,7 +235,6 @@ export default function App() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      // Select all currently filtered items
       const allIds = sortedItems.map(i => i.id); 
       setSelectedItems(new Set(allIds));
     } else {
@@ -284,23 +281,17 @@ export default function App() {
     }
   };
 
-  // NEW: EXPORT TO CSV HANDLER
+  // EXPORT TO CSV HANDLER
   const handleExportCSV = () => {
     if (selectedItems.size === 0) return;
 
-    // Get the actual item objects from the IDs
     const exportData = items.filter(item => selectedItems.has(item.id));
-
-    // Define CSV Headers
     const headers = ["Date Added", "Item Name", "Buyer", "Seller", "Location", "Price", "Transfer Fee", "Status", "Claimed Date", "Paid Externally?"];
 
-    // Convert Data to CSV Format
     const csvRows = [
-      headers.join(','), // Header Row
+      headers.join(','), 
       ...exportData.map(item => {
-        // Helper to escape commas in text (e.g. "Dress, White")
         const escape = (text) => `"${String(text || '').replace(/"/g, '""')}"`;
-        
         return [
           escape(formatDate(item.createdAt)),
           escape(item.itemName),
@@ -316,7 +307,6 @@ export default function App() {
       })
     ];
 
-    // Create Blob and Link
     const csvString = csvRows.join('\n');
     const blob = new Blob([csvString], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -326,7 +316,6 @@ export default function App() {
     a.click();
     window.URL.revokeObjectURL(url);
   };
-
 
   // --- Login Handlers ---
 
@@ -376,12 +365,9 @@ export default function App() {
     setUserName(newName);
     localStorage.setItem('la_union_role', newRole);
     localStorage.setItem('la_union_name', newName);
-    
-    // NEW: If buyer, auto-populate the search term so they don't have to type it again
     if (newRole === 'buyer') {
       setSearchTerm(newName);
     }
-
     setLoginMode('menu');
     setLoginInputName('');
     setLoginInputPass('');
@@ -397,9 +383,7 @@ export default function App() {
     setSelectedSellerForCashout(null);
     setIsUserMgmtOpen(false);
     setSelectedItems(new Set()); 
-    // Clear search term on logout so next user starts fresh
     setSearchTerm(''); 
-    // Reset pagination states
     setCashOutSearchTerm('');
     setCashOutPage(1);
   };
@@ -448,14 +432,12 @@ export default function App() {
   const handleStatusChange = async (itemId, newStatus) => {
     try {
       const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', itemId);
-      
       const updates = { status: newStatus };
       if (newStatus === 'claimed') {
         updates.claimedAt = serverTimestamp();
       } else if (newStatus === 'dropped') {
         updates.claimedAt = null; 
       } 
-
       await updateDoc(itemRef, updates);
     } catch (error) {
       console.error("Error updating status:", error);
@@ -509,7 +491,6 @@ export default function App() {
   };
 
   const handleDeleteUser = async (sellerId, sellerName) => {
-    // SECURITY CHECK: REQUIRE ADMIN PIN
     const pin = prompt(`⚠️ WARNING ⚠️\n\nYou are about to remove access for ${sellerName}.\n\nPlease enter the Admin PIN to confirm:`);
     
     if (pin !== ADMIN_PIN) {
@@ -574,20 +555,16 @@ export default function App() {
         }
       }
     });
-    // Sort by name alphabetically by default
     return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
   }, [items, role]);
 
   // Filter & Paginate Cash Out List
   const filteredCashOutSellers = useMemo(() => {
     let result = sellersWithBalance;
-
-    // Filter by search term
     if (cashOutSearchTerm.trim()) {
       const lowerTerm = cashOutSearchTerm.toLowerCase();
       result = result.filter(seller => seller.name.toLowerCase().includes(lowerTerm));
     }
-    
     return result;
   }, [sellersWithBalance, cashOutSearchTerm]);
 
@@ -598,7 +575,6 @@ export default function App() {
 
   const totalCashOutPages = Math.ceil(filteredCashOutSellers.length / CASH_OUT_ITEMS_PER_PAGE);
 
-  // Reset cash out page when search changes
   useEffect(() => {
     if (isCashOutModalOpen) {
         setCashOutPage(1);
@@ -644,7 +620,6 @@ export default function App() {
 
   // --- FILTERING, SORTING & PAGINATION LOGIC ---
 
-  // 1. Filter
   const filteredItems = useMemo(() => {
     if (role === 'buyer' && !searchTerm.trim()) {
         return [];
@@ -685,7 +660,6 @@ export default function App() {
     });
   }, [items, searchTerm, statusFilter, role, userName]);
 
-  // 2. Sort
   const sortedItems = useMemo(() => {
     const sortable = [...filteredItems];
     
@@ -701,7 +675,7 @@ export default function App() {
           valA = (a.location || '').toLowerCase();
           valB = (b.location || '').toLowerCase();
           break;
-        default: // date
+        default: 
           valA = a.createdAt;
           valB = b.createdAt;
       }
@@ -714,7 +688,6 @@ export default function App() {
     return sortable;
   }, [filteredItems, sortBy, sortOrder]);
 
-  // 3. Paginate
   const paginatedItems = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return sortedItems.slice(startIndex, startIndex + itemsPerPage);
@@ -726,7 +699,6 @@ export default function App() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, sortBy, sortOrder, itemsPerPage]);
 
-
   const stats = useMemo(() => {
     let viewableItems = items;
     if (role === 'seller') {
@@ -735,7 +707,6 @@ export default function App() {
         viewableItems = []; 
     }
     
-    // NEW: Calculate Balance for Sellers (Claimed + Not Paid Externally)
     let availableBalance = 0;
     if (role === 'seller') {
         availableBalance = viewableItems.reduce((sum, item) => {
@@ -753,7 +724,7 @@ export default function App() {
       dropped: viewableItems.filter(i => i.status === 'dropped').length,
       claimed: viewableItems.filter(i => i.status === 'claimed').length,
       cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length,
-      balance: availableBalance // Added balance to stats
+      balance: availableBalance 
     };
   }, [items, role, userName]);
 
@@ -895,30 +866,16 @@ export default function App() {
         {role !== 'buyer' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100">
-              {role === 'seller' ? (
-                  <>
-                      <div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div>
-                      <div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div>
-                  </>
-              ) : (
-                  <>
-                      <div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div>
-                      <div className="text-2xl font-bold text-slate-800">{items.length}</div>
-                  </>
-              )}
+              {role === 'seller' ? (<><div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div><div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div></>) : (<><div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div><div className="text-2xl font-bold text-slate-800">{items.length}</div></>)}
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
-            
-            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
                 <button onClick={() => setIsFormOpen(true)} className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"><Plus className="w-5 h-5" /></button>
               </div>
             )}
-
-            {/* SELLER BALANCE CARD */}
             {role === 'seller' && (
               <div className="bg-emerald-50 p-4 rounded-xl shadow-sm border border-emerald-200">
                 <div className="text-emerald-700 text-xs font-semibold uppercase">Available for Cash Out</div>
@@ -938,15 +895,12 @@ export default function App() {
                 <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                     {role === 'admin' && selectedItems.size > 0 && (
                         <div className="flex gap-2">
-                           {/* EXPORT BUTTON (Green) */}
                            <button 
                              onClick={handleExportCSV} 
                              className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-green-100 text-green-700 hover:bg-green-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"
                            >
                               <FileDown className="w-4 h-4" /> Export ({selectedItems.size})
                            </button>
-                           
-                           {/* DELETE BUTTON (Red) */}
                            <button onClick={handleMassDelete} className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-red-100 text-red-600 hover:bg-red-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"><Trash2 className="w-4 h-4" /> Delete ({selectedItems.size})</button>
                         </div>
                     )}
@@ -1419,12 +1373,21 @@ export default function App() {
 
                     <table className="w-full mb-6 text-sm">
                         <thead>
-                            <tr className="border-b-2 border-pink-100 text-left"><th className="py-2 text-slate-500">Item</th><th className="py-2 text-slate-500">Buyer</th><th className="py-2 text-slate-500 text-right">Fee</th><th className="py-2 text-slate-500 text-right">Price</th></tr>
+                            <tr className="border-b-2 border-pink-100 text-left">
+                                <th className="py-2 text-slate-500">Date</th> {/* NEW */}
+                                <th className="py-2 text-slate-500">Item</th>
+                                <th className="py-2 text-slate-500">Location</th> {/* NEW */}
+                                <th className="py-2 text-slate-500">Buyer</th>
+                                <th className="py-2 text-slate-500 text-right">Fee</th>
+                                <th className="py-2 text-slate-500 text-right">Price</th>
+                            </tr>
                         </thead>
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
                                 <tr key={item.id}>
+                                    <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td> {/* NEW */}
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
+                                    <td className="py-2 text-slate-500 text-xs">{item.location}</td> {/* NEW */}
                                     <td className="py-2 text-slate-500">{item.buyerName}</td>
                                     <td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td>
                                     <td className="py-2 text-right font-medium text-purple-700">
@@ -1435,7 +1398,7 @@ export default function App() {
                         </tbody>
                         <tfoot>
                             <tr className="border-t-2 border-slate-800">
-                                <td colSpan="3" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
+                                <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td> {/* Updated colSpan */}
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
                         </tfoot>
