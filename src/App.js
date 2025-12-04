@@ -317,7 +317,6 @@ export default function App() {
     window.URL.revokeObjectURL(url);
   };
 
-
   // --- Login Handlers ---
 
   const handleAdminLogin = () => {
@@ -535,7 +534,7 @@ export default function App() {
     }
   };
 
-  // --- Admin Cash Out Logic (UPDATED) ---
+  // --- Admin Cash Out Logic ---
 
   const sellersWithBalance = useMemo(() => {
     if (role !== 'admin') return [];
@@ -549,17 +548,10 @@ export default function App() {
         }
         groups[seller].items.push(item);
         
-        // Parse values
-        const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
-        const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
-
-        // Logic Update:
-        // If Paid Externally: Total = Fee ONLY
-        // If Not Paid Externally: Total = Price + Fee
-        if (item.isPaidExternally) {
-            groups[seller].total += fee;
-        } else {
-            groups[seller].total += (price + fee);
+        if (!item.isPaidExternally) {
+          const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
+          const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
+          groups[seller].total += (price + fee);
         }
       }
     });
@@ -715,27 +707,13 @@ export default function App() {
         viewableItems = []; 
     }
     
-    // Calculate Balance for Sellers (Claimed + Not Paid Externally)
-    // If Paid Externally, we still add the FEE if applicable, but usually that fee is paid by buyer to center?
-    // Wait, if Paid Externally, the Seller already has the price.
-    // Does the Seller get the FEE? Usually Fee is for the Center.
-    // Assuming "Available for Cash Out" means money the Center owes the Seller.
-    // If Seller collected Price outside, Center owes nothing (unless Center collected Fee).
-    // Based on Admin Cash Out Logic:
-    // If Paid Externally -> Center owes Fee to Seller (assuming Center collected it).
-    
     let availableBalance = 0;
     if (role === 'seller') {
         availableBalance = viewableItems.reduce((sum, item) => {
-            if (item.status === 'claimed') {
+            if (item.status === 'claimed' && !item.isPaidExternally) {
                  const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
                  const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
-                 
-                 if (item.isPaidExternally) {
-                     return sum + fee;
-                 } else {
-                     return sum + price + fee;
-                 }
+                 return sum + price + fee;
             }
             return sum;
         }, 0);
@@ -888,30 +866,16 @@ export default function App() {
         {role !== 'buyer' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100">
-              {role === 'seller' ? (
-                  <>
-                      <div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div>
-                      <div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div>
-                  </>
-              ) : (
-                  <>
-                      <div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div>
-                      <div className="text-2xl font-bold text-slate-800">{items.length}</div>
-                  </>
-              )}
+              {role === 'seller' ? (<><div className="text-pink-500 text-xs font-semibold uppercase">My Active Items</div><div className="text-2xl font-bold text-slate-800">{stats.dropped + stats.claimed}</div></>) : (<><div className="text-slate-500 text-xs font-semibold uppercase">Total Database</div><div className="text-2xl font-bold text-slate-800">{items.length}</div></>)}
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
-            
-            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
                 <button onClick={() => setIsFormOpen(true)} className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"><Plus className="w-5 h-5" /></button>
               </div>
             )}
-
-            {/* SELLER BALANCE CARD */}
             {role === 'seller' && (
               <div className="bg-emerald-50 p-4 rounded-xl shadow-sm border border-emerald-200">
                 <div className="text-emerald-700 text-xs font-semibold uppercase">Available for Cash Out</div>
@@ -931,15 +895,12 @@ export default function App() {
                 <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                     {role === 'admin' && selectedItems.size > 0 && (
                         <div className="flex gap-2">
-                           {/* EXPORT BUTTON (Green) */}
                            <button 
                              onClick={handleExportCSV} 
                              className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-green-100 text-green-700 hover:bg-green-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"
                            >
                               <FileDown className="w-4 h-4" /> Export ({selectedItems.size})
                            </button>
-                           
-                           {/* DELETE BUTTON (Red) */}
                            <button onClick={handleMassDelete} className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-red-100 text-red-600 hover:bg-red-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"><Trash2 className="w-4 h-4" /> Delete ({selectedItems.size})</button>
                         </div>
                     )}
@@ -1413,9 +1374,9 @@ export default function App() {
                     <table className="w-full mb-6 text-sm">
                         <thead>
                             <tr className="border-b-2 border-pink-100 text-left">
-                                <th className="py-2 text-slate-500">Date</th>
+                                <th className="py-2 text-slate-500">Date</th> {/* NEW */}
                                 <th className="py-2 text-slate-500">Item</th>
-                                <th className="py-2 text-slate-500">Location</th>
+                                <th className="py-2 text-slate-500">Location</th> {/* NEW */}
                                 <th className="py-2 text-slate-500">Buyer</th>
                                 <th className="py-2 text-slate-500 text-right">Fee</th>
                                 <th className="py-2 text-slate-500 text-right">Price</th>
@@ -1424,9 +1385,9 @@ export default function App() {
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
                                 <tr key={item.id}>
-                                    <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td>
+                                    <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td> {/* NEW */}
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
-                                    <td className="py-2 text-slate-500 text-xs">{item.location}</td>
+                                    <td className="py-2 text-slate-500 text-xs">{item.location}</td> {/* NEW */}
                                     <td className="py-2 text-slate-500">{item.buyerName}</td>
                                     <td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td>
                                     <td className="py-2 text-right font-medium text-purple-700">
@@ -1437,7 +1398,7 @@ export default function App() {
                         </tbody>
                         <tfoot>
                             <tr className="border-t-2 border-slate-800">
-                                <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
+                                <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td> {/* Updated colSpan */}
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
                         </tfoot>
