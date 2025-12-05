@@ -50,7 +50,8 @@ import {
   ListFilter,
   FileDown,
   Printer,
-  Truck 
+  Truck,
+  Clock // Added Clock icon for DOM
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -116,6 +117,7 @@ export default function App() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortBy, setSortBy] = useState('date'); 
   const [sortOrder, setSortOrder] = useState('desc'); 
+  const [domFilter, setDomFilter] = useState('all'); // NEW: DOM Filter state
 
   // MASS ACTION STATE
   const [selectedItems, setSelectedItems] = useState(new Set()); 
@@ -134,7 +136,7 @@ export default function App() {
   const [cashOutPage, setCashOutPage] = useState(1);
   const CASH_OUT_ITEMS_PER_PAGE = 10;
 
-  // USER MANAGEMENT SEARCH (NEW)
+  // USER MANAGEMENT SEARCH
   const [userMgmtSearch, setUserMgmtSearch] = useState('');
 
   // Login UI State
@@ -167,6 +169,18 @@ export default function App() {
       day: '2-digit',
       year: '2-digit'
     });
+  };
+
+  // --- HELPER: DAYS ON MARKET CALCULATOR ---
+  const getDOM = (date) => {
+    if (!date) return 0;
+    const today = new Date();
+    // Reset time part to ensure accurate day difference
+    const d1 = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const d2 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffTime = Math.abs(d2 - d1);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return diffDays;
   };
 
   // --- Auth & Data Effects ---
@@ -211,6 +225,7 @@ export default function App() {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
+      // Default sort on load is irrelevant as we re-sort in UI
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
       setLoading(false);
@@ -258,6 +273,31 @@ export default function App() {
     setSelectedItems(newSelected);
   };
 
+  // NEW: MASS PULL OUT HANDLER
+  const handleMassPullOut = async () => {
+    if (selectedItems.size === 0) return;
+    
+    if (!confirm(`Confirm PULL OUT for ${selectedItems.size} items? They will be moved to Archive.`)) return;
+
+    setIsProcessing(true);
+    try {
+      const batch = writeBatch(db);
+      selectedItems.forEach(id => {
+        const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'dropping_items', id);
+        batch.update(itemRef, { status: 'pulled_out' }); // Update status instead of delete
+      });
+      await batch.commit();
+      
+      setSelectedItems(new Set()); 
+      alert("Selected items marked as Pulled Out.");
+    } catch (error) {
+      console.error("Error pulling out items:", error);
+      alert("Error: " + error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleMassDelete = async () => {
     if (selectedItems.size === 0) return;
     
@@ -292,7 +332,7 @@ export default function App() {
     if (selectedItems.size === 0) return;
 
     const exportData = items.filter(item => selectedItems.has(item.id));
-    const headers = ["Date Added", "Item Name", "Buyer", "Seller", "Location", "Price", "Transfer Fee", "Status", "Claimed Date", "Paid Externally?"];
+    const headers = ["Date Added", "Days on Market", "Item Name", "Buyer", "Seller", "Location", "Price", "Transfer Fee", "Status", "Claimed Date", "Paid Externally?"];
 
     const csvRows = [
       headers.join(','), 
@@ -300,6 +340,7 @@ export default function App() {
         const escape = (text) => `"${String(text || '').replace(/"/g, '""')}"`;
         return [
           escape(formatDate(item.createdAt)),
+          escape(getDOM(item.createdAt)), // Add DOM to Export
           escape(item.itemName),
           escape(item.buyerName),
           escape(item.sellerName),
@@ -397,7 +438,8 @@ export default function App() {
     setSearchTerm(''); 
     setCashOutSearchTerm('');
     setCashOutPage(1);
-    setUserMgmtSearch(''); // Reset user mgmt search
+    setUserMgmtSearch(''); 
+    setDomFilter('all'); // Reset DOM filter
   };
 
   // --- Data Handlers ---
@@ -520,7 +562,7 @@ export default function App() {
 
   // --- User Management Filtering ---
   const filteredSellerList = useMemo(() => {
-    if (!userMgmtSearch.trim()) return []; // Return empty if no search
+    if (!userMgmtSearch.trim()) return []; 
     const term = userMgmtSearch.toLowerCase();
     return sellerList.filter(s => s.displayName.toLowerCase().includes(term));
   }, [sellerList, userMgmtSearch]);
@@ -679,9 +721,19 @@ export default function App() {
          matchesStatus = item.status === statusFilter;
       }
 
-      return matchesSearch && matchesStatus;
+      // NEW: DOM FILTER LOGIC
+      let matchesDOM = true;
+      if (domFilter !== 'all') {
+          const days = parseInt(domFilter);
+          const itemAge = getDOM(item.createdAt);
+          if (itemAge < days) {
+              matchesDOM = false;
+          }
+      }
+
+      return matchesSearch && matchesStatus && matchesDOM;
     });
-  }, [items, searchTerm, statusFilter, role, userName]);
+  }, [items, searchTerm, statusFilter, role, userName, domFilter]); // Added domFilter dependency
 
   const sortedItems = useMemo(() => {
     const sortable = [...filteredItems];
@@ -720,7 +772,7 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, sortBy, sortOrder, itemsPerPage]);
+  }, [searchTerm, statusFilter, sortBy, sortOrder, itemsPerPage, domFilter]);
 
   const stats = useMemo(() => {
     let viewableItems = items;
@@ -752,7 +804,7 @@ export default function App() {
       dropped: viewableItems.filter(i => i.status === 'dropped').length,
       claimed: viewableItems.filter(i => i.status === 'claimed').length,
       cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length,
-      in_transit: viewableItems.filter(i => i.status === 'in_transit').length, // Added in_transit stat
+      in_transit: viewableItems.filter(i => i.status === 'in_transit').length, 
       balance: availableBalance 
     };
   }, [items, role, userName]);
@@ -841,15 +893,12 @@ export default function App() {
   return (
     <div className="min-h-screen bg-fuchsia-50 pb-20">
       
-      {/* STYLES FOR PRINTING (FIXED: HIDES EVERYTHING EXCEPT RECEIPT) */}
+      {/* STYLES FOR PRINTING */}
       <style>{`
         @media print {
-          /* 1. Hide all main UI elements explicitly */
           header, main, .fixed {
             display: none !important;
           }
-          
-          /* 2. Ensure the root and body have no constraints */
           html, body, #root, .min-h-screen {
             height: auto !important;
             overflow: visible !important;
@@ -857,8 +906,6 @@ export default function App() {
             margin: 0 !important;
             padding: 0 !important;
           }
-
-          /* 3. Show ONLY the receipt */
           #printable-receipt {
             display: block !important;
             position: static !important;
@@ -867,21 +914,16 @@ export default function App() {
             padding: 20px !important;
             visibility: visible !important;
           }
-          
           #printable-receipt * {
             visibility: visible !important;
           }
-
-          /* 4. Table Page Break Logic */
           tr {
              break-inside: avoid; 
              page-break-inside: avoid;
           }
-          
           thead {
             display: table-header-group;
           }
-
           @page {
             size: auto;
             margin: 10mm;
@@ -1063,6 +1105,9 @@ export default function App() {
                               <FileDown className="w-4 h-4" /> Export ({selectedItems.size})
                            </button>
                            
+                           {/* MASS PULL OUT (Orange) */}
+                           <button onClick={handleMassPullOut} className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-orange-100 text-orange-700 hover:bg-orange-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"><PackageMinus className="w-4 h-4" /> Pull Out ({selectedItems.size})</button>
+
                            {/* DELETE BUTTON (Red) */}
                            <button onClick={handleMassDelete} className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-red-100 text-red-600 hover:bg-red-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"><Trash2 className="w-4 h-4" /> Delete ({selectedItems.size})</button>
                         </div>
@@ -1091,7 +1136,18 @@ export default function App() {
                    </button>
                 </div>
 
+                {/* NEW: DOM FILTER DROPDOWN */}
                 <div className="flex items-center gap-4">
+                   <div className="text-sm text-slate-500 flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="hidden sm:inline">Age:</span>
+                      <select value={domFilter} onChange={(e) => setDomFilter(e.target.value)} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-pink-500">
+                         <option value="all">All Time</option>
+                         <option value="30">Over 30 Days</option>
+                         <option value="60">Over 60 Days</option>
+                      </select>
+                   </div>
+
                    <div className="text-sm text-slate-500 flex items-center gap-2">
                       <span>Show:</span>
                       <select value={itemsPerPage} onChange={(e) => setItemsPerPage(Number(e.target.value))} className="bg-slate-50 border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-pink-500">
@@ -1121,7 +1177,20 @@ export default function App() {
               >
                 <div className="hidden md:grid grid-cols-8 gap-4 p-4 items-center">
                   <div className="col-span-1">{role === 'admin' && <input type="checkbox" checked={selectedItems.has(item.id)} onClick={(e) => e.stopPropagation()} onChange={() => handleSelectItem(item.id)} className="w-4 h-4 text-pink-600 rounded border-gray-300 focus:ring-pink-500"/>}</div>
-                  <div className="col-span-1 text-sm text-slate-500">{formatDate(item.createdAt)}<div className="text-xs text-slate-400">{item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div></div>
+                  <div className="col-span-1 text-sm text-slate-500">
+                    <div>{formatDate(item.createdAt)}</div>
+                    <div className="text-xs text-slate-400">{item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    {role === 'admin' && item.status === 'dropped' && (
+                       <div className={`text-[10px] font-bold mt-1 ${getDOM(item.createdAt) > 30 ? 'text-red-600' : 'text-orange-600'}`}>
+                         {getDOM(item.createdAt)} days old
+                       </div>
+                    )}
+                    {role === 'admin' && item.status === 'in_transit' && (
+                       <div className="text-[10px] font-bold text-orange-600 mt-1">
+                         {getDOM(item.createdAt)} days old
+                       </div>
+                    )}
+                  </div>
                   <div className="col-span-2"><div className="text-sm font-medium text-slate-800">{item.itemName}</div>{role !== 'buyer' && <div><div className={`text-xs ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-slate-500'}`}>{item.isPaidExternally ? `(${item.price})` : `Price: ${item.price}`}</div>{item.transferFee && item.transferFee !== '0' && <div className="text-xs text-pink-500">Fee: {item.transferFee}</div>}</div>}</div>
                   <div className="col-span-1 text-sm text-slate-600 flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-400" /> {item.location || '-'}</div>
                   <div className="col-span-1 text-sm text-slate-600">{item.buyerName}</div>
@@ -1183,7 +1252,17 @@ export default function App() {
                         <div className="text-xs text-slate-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {item.location || '-'}</div>
                     </div>
                     <div className="flex justify-between items-end border-t border-pink-50 pt-2">
-                        <div className="text-xs text-slate-400">{formatDate(item.createdAt)}</div>
+                        <div className="text-xs text-slate-400">
+                          <div>{formatDate(item.createdAt)}</div>
+                          {role === 'admin' && item.status === 'dropped' && (
+                             <div className={`text-[10px] font-bold mt-1 ${getDOM(item.createdAt) > 30 ? 'text-red-600' : 'text-orange-600'}`}>
+                               {getDOM(item.createdAt)} days old
+                             </div>
+                          )}
+                          {role === 'admin' && item.status === 'in_transit' && (
+                             <div className="text-[10px] font-bold text-orange-600 mt-1">{getDOM(item.createdAt)} days old</div>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                         {role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleEditClick(item); }} className="p-1 mr-2 text-slate-400"><Pencil className="w-4 h-4" /></button>}
                         {role !== 'buyer' && (<div className="text-right mr-2"><span className={`text-sm font-semibold ${item.isPaidExternally ? 'text-gray-400 line-through' : 'text-purple-700'}`}>{item.isPaidExternally ? `(₱${item.price})` : `₱${item.price}`}</span>{item.transferFee && item.transferFee !== '0' && <div className="text-[10px] text-pink-500">Fee: {item.transferFee}</div>}</div>)}
