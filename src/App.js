@@ -50,7 +50,7 @@ import {
   ListFilter,
   FileDown,
   Printer,
-  Truck // Added Truck Icon for In Transit
+  Truck 
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -151,7 +151,7 @@ export default function App() {
   const [newItemTransferFee, setNewItemTransferFee] = useState(''); 
   const [newItemLocation, setNewItemLocation] = useState('SFC');
   const [newItemSeller, setNewItemSeller] = useState(''); 
-  const [newItemStatus, setNewItemStatus] = useState('dropped'); // Default 'dropped' (Ready)
+  const [newItemStatus, setNewItemStatus] = useState('dropped'); 
 
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
@@ -208,7 +208,6 @@ export default function App() {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
-      // Default sort on load is irrelevant as we re-sort in UI
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
       setLoading(false);
@@ -900,26 +899,37 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-                {/* NEW: USER MANAGEMENT BUTTON (Admin Only) */}
+                
+                {/* ADMIN HEADER BUTTONS */}
                 {role === 'admin' && (
-                    <button 
-                        onClick={() => setIsUserMgmtOpen(true)}
-                        className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
-                        title="Manage Users"
-                    >
-                        <Users className="w-5 h-5" />
-                    </button>
+                    <>
+                        {/* NEW DROP BUTTON (MOVED HERE) */}
+                        <button 
+                            onClick={() => setIsFormOpen(true)}
+                            className="flex items-center gap-1 bg-pink-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-700 transition-colors shadow-sm"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span className="hidden sm:inline">New Drop</span>
+                        </button>
+
+                        <button 
+                            onClick={() => setIsCashOutModalOpen(true)}
+                            className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
+                        >
+                            <Banknote className="w-4 h-4" />
+                            <span className="hidden sm:inline">Cash Out</span>
+                        </button>
+
+                        <button 
+                            onClick={() => setIsUserMgmtOpen(true)}
+                            className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                            title="Manage Users"
+                        >
+                            <Users className="w-5 h-5" />
+                        </button>
+                    </>
                 )}
 
-                {role === 'admin' && (
-                    <button 
-                        onClick={() => setIsCashOutModalOpen(true)}
-                        className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
-                    >
-                        <Banknote className="w-4 h-4" />
-                        <span className="hidden sm:inline">Admin Cash Out</span>
-                    </button>
-                )}
                 <button 
                 onClick={handleLogout}
                 className="text-slate-400 hover:text-pink-600 transition-colors p-2"
@@ -1016,12 +1026,9 @@ export default function App() {
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-amber-100"><div className="text-amber-500 text-xs font-semibold uppercase">In Transit</div><div className="text-2xl font-bold text-amber-600">{stats.in_transit}</div></div>
-            {role === 'admin' && (
-              <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
-                <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
-                <button onClick={() => setIsFormOpen(true)} className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"><Plus className="w-5 h-5" /></button>
-              </div>
-            )}
+            
+            {/* NEW DROP BUTTON: REMOVED FROM HERE, NOW IN HEADER */}
+
             {role === 'seller' && (
               <div className="bg-emerald-50 p-4 rounded-xl shadow-sm border border-emerald-200">
                 <div className="text-emerald-700 text-xs font-semibold uppercase">Available for Cash Out</div>
@@ -1041,12 +1048,15 @@ export default function App() {
                 <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
                     {role === 'admin' && selectedItems.size > 0 && (
                         <div className="flex gap-2">
+                           {/* EXPORT BUTTON (Green) */}
                            <button 
                              onClick={handleExportCSV} 
                              className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-green-100 text-green-700 hover:bg-green-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"
                            >
                               <FileDown className="w-4 h-4" /> Export ({selectedItems.size})
                            </button>
+                           
+                           {/* DELETE BUTTON (Red) */}
                            <button onClick={handleMassDelete} className="px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap bg-red-100 text-red-600 hover:bg-red-200 flex items-center gap-2 animate-in fade-in slide-in-from-right-5"><Trash2 className="w-4 h-4" /> Delete ({selectedItems.size})</button>
                         </div>
                     )}
@@ -1569,7 +1579,7 @@ export default function App() {
                         </thead>
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
-                                <tr key={item.id} className="break-inside-avoid">
+                                <tr key={item.id}>
                                     <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td>
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
                                     <td className="py-2 text-slate-500 text-xs">{item.location}</td>
@@ -1582,7 +1592,7 @@ export default function App() {
                             ))}
                         </tbody>
                         <tfoot>
-                            <tr className="border-t-2 border-slate-800 break-inside-avoid">
+                            <tr className="border-t-2 border-slate-800">
                                 <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
