@@ -922,7 +922,7 @@ export default function App() {
                         className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
                     >
                         <Banknote className="w-4 h-4" />
-                        <span className="hidden sm:inline">Admin Cash Out</span>
+                        <span className="hidden sm:inline">Cash Out</span>
                     </button>
                 )}
                 
