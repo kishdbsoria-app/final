@@ -49,7 +49,8 @@ import {
   ArrowUpDown, 
   ListFilter,
   FileDown,
-  Printer 
+  Printer,
+  Truck // Added Truck Icon for In Transit
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -150,6 +151,7 @@ export default function App() {
   const [newItemTransferFee, setNewItemTransferFee] = useState(''); 
   const [newItemLocation, setNewItemLocation] = useState('SFC');
   const [newItemSeller, setNewItemSeller] = useState(''); 
+  const [newItemStatus, setNewItemStatus] = useState('dropped'); // Default 'dropped' (Ready)
 
   // Cash Out Selection State (For Admin)
   const [selectedSellerForCashout, setSelectedSellerForCashout] = useState(null);
@@ -206,6 +208,7 @@ export default function App() {
         createdAt: doc.data().createdAt?.toDate() || new Date(),
         claimedAt: doc.data().claimedAt?.toDate() || null
       }));
+      // Default sort on load is irrelevant as we re-sort in UI
       loadedItems.sort((a, b) => b.createdAt - a.createdAt);
       setItems(loadedItems);
       setLoading(false);
@@ -416,7 +419,7 @@ export default function App() {
         location: newItemLocation,
         price: newItemPrice || '0',
         transferFee: newItemTransferFee || '0', 
-        status: 'dropped',
+        status: newItemStatus || 'dropped', // Use selected status or default 'dropped'
         isPaidExternally: false, 
         createdAt: serverTimestamp()
       });
@@ -425,6 +428,7 @@ export default function App() {
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
+      // Keep location and seller and status for rapid entry
       
       setShowSuccessMsg(true);
       setTimeout(() => setShowSuccessMsg(false), 2000);
@@ -441,7 +445,7 @@ export default function App() {
       const updates = { status: newStatus };
       if (newStatus === 'claimed') {
         updates.claimedAt = serverTimestamp();
-      } else if (newStatus === 'dropped') {
+      } else if (newStatus === 'dropped' || newStatus === 'in_transit') {
         updates.claimedAt = null; 
       } 
       await updateDoc(itemRef, updates);
@@ -657,12 +661,16 @@ export default function App() {
 
       let matchesStatus = true;
       if (statusFilter === 'all') {
+         // "All" now hides cashed_out and pulled_out (unless searched?)
+         // Actually "All" usually means "Active" things.
+         // If it's 'in_transit', it should show in 'all'.
          if (item.status === 'cashed_out' || item.status === 'pulled_out') {
              matchesStatus = false;
          }
       } else if (statusFilter === 'cashed_out') {
          matchesStatus = item.status === 'cashed_out' || item.status === 'pulled_out';
       } else {
+         // strict status match ('dropped', 'claimed', 'in_transit')
          matchesStatus = item.status === statusFilter;
       }
 
@@ -739,6 +747,7 @@ export default function App() {
       dropped: viewableItems.filter(i => i.status === 'dropped').length,
       claimed: viewableItems.filter(i => i.status === 'claimed').length,
       cashed_out: viewableItems.filter(i => i.status === 'cashed_out' || i.status === 'pulled_out').length,
+      in_transit: viewableItems.filter(i => i.status === 'in_transit').length, // Added in_transit stat
       balance: availableBalance 
     };
   }, [items, role, userName]);
@@ -1006,6 +1015,7 @@ export default function App() {
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-amber-100"><div className="text-amber-500 text-xs font-semibold uppercase">In Transit</div><div className="text-2xl font-bold text-amber-600">{stats.in_transit}</div></div>
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
@@ -1044,6 +1054,7 @@ export default function App() {
                         </div>
                     )}
                     <button onClick={() => setStatusFilter('all')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'all' ? 'bg-purple-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>All Active</button>
+                    <button onClick={() => setStatusFilter('in_transit')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'in_transit' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>In Transit</button>
                     <button onClick={() => setStatusFilter('dropped')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'dropped' ? 'bg-pink-600 text-white' : 'bg-pink-50 text-pink-700 hover:bg-pink-100'}`}>Ready</button>
                     <button onClick={() => setStatusFilter('claimed')} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${statusFilter === 'claimed' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'}`}>Claimed</button>
                     {(role === 'admin' || role === 'seller') && (
@@ -1103,7 +1114,20 @@ export default function App() {
                   <div className="col-span-1 text-sm text-slate-600">{item.sellerName}</div>
                   <div className="col-span-1 text-right flex items-center justify-end gap-2">
                     {role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleEditClick(item); }} className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit Item"><Pencil className="w-4 h-4" /></button>}
-                    {item.status === 'dropped' ? (
+                    {item.status === 'in_transit' ? (
+                      <>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">In Transit</span>
+                        {role === 'admin' && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }}
+                              className="p-1 ml-2 hover:bg-pink-100 rounded text-pink-600"
+                              title="Mark as Arrived/Ready"
+                            >
+                              <Truck className="w-5 h-5" />
+                            </button>
+                        )}
+                      </>
+                    ) : item.status === 'dropped' ? (
                       <><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>
                         {role === 'admin' && (
                             <div className="flex gap-1">
@@ -1126,7 +1150,19 @@ export default function App() {
                   <div className="flex-1">
                     <div className="flex justify-between items-start mb-2">
                         <div><h4 className="font-semibold text-slate-800">{item.itemName}</h4><p className="text-sm text-slate-500">Buyer: <span className="text-slate-700 font-medium">{item.buyerName}</span></p></div>
-                        {item.status === 'dropped' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>) : item.status === 'claimed' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <div className="text-[10px] text-slate-400 mt-1">{formatDate(item.claimedAt)}</div>}{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'pulled_out' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'cashed_out' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>) : (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>)}
+                        {item.status === 'in_transit' ? (
+                          <div className="text-right">
+                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">In Transit</span>
+                             {role === 'admin' && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }}
+                                  className="text-[10px] text-pink-600 hover:text-pink-800 hover:underline mt-1 flex items-center justify-end gap-1 w-full"
+                                >
+                                  <Truck className="w-3 h-3" /> Mark Arrived
+                                </button>
+                             )}
+                          </div>
+                        ) : item.status === 'dropped' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-pink-100 text-pink-800">Ready</span>) : item.status === 'claimed' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Claimed</span>{item.claimedAt && <div className="text-[10px] text-slate-400 mt-1">{formatDate(item.claimedAt)}</div>}{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'pulled_out' ? (<div className="text-right"><span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">Pulled Out</span>{role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleStatusChange(item.id, 'dropped'); }} className="text-[10px] text-slate-400 hover:text-red-500 hover:underline mt-1 flex items-center justify-end gap-1 w-full"><RotateCcw className="w-3 h-3" /> Undo</button>}</div>) : item.status === 'cashed_out' ? (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">Done</span>) : (<span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800">Cancelled</span>)}
                     </div>
                     <div className="flex flex-col gap-1 mb-2">
                         <div className="text-xs text-slate-500 flex items-center gap-1"><User className="w-3 h-3" /> Seller: {item.sellerName}</div>
@@ -1190,6 +1226,19 @@ export default function App() {
 
             <form onSubmit={handleAddItem} className="space-y-4">
               
+              {/* NEW: STATUS SELECTION FOR RAPID ENTRY */}
+              <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Initial Status</label>
+                 <select 
+                   value={newItemStatus}
+                   onChange={(e) => setNewItemStatus(e.target.value)}
+                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-pink-500 outline-none bg-white"
+                 >
+                    <option value="dropped">Ready for Pickup</option>
+                    <option value="in_transit">In Transit (On the way)</option>
+                 </select>
+              </div>
+
               {/* NEW: SELLER SELECTION (ADMIN ONLY) */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Select Seller</label>
