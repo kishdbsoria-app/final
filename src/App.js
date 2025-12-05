@@ -134,6 +134,9 @@ export default function App() {
   const [cashOutPage, setCashOutPage] = useState(1);
   const CASH_OUT_ITEMS_PER_PAGE = 10;
 
+  // USER MANAGEMENT SEARCH (NEW)
+  const [userMgmtSearch, setUserMgmtSearch] = useState('');
+
   // Login UI State
   const [loginMode, setLoginMode] = useState('menu'); 
   const [loginInputName, setLoginInputName] = useState('');
@@ -394,6 +397,7 @@ export default function App() {
     setSearchTerm(''); 
     setCashOutSearchTerm('');
     setCashOutPage(1);
+    setUserMgmtSearch(''); // Reset user mgmt search
   };
 
   // --- Data Handlers ---
@@ -418,7 +422,7 @@ export default function App() {
         location: newItemLocation,
         price: newItemPrice || '0',
         transferFee: newItemTransferFee || '0', 
-        status: newItemStatus || 'dropped', // Use selected status or default 'dropped'
+        status: newItemStatus || 'dropped', 
         isPaidExternally: false, 
         createdAt: serverTimestamp()
       });
@@ -427,7 +431,6 @@ export default function App() {
       setNewItemBuyer('');
       setNewItemPrice('');
       setNewItemTransferFee(''); 
-      // Keep location and seller and status for rapid entry
       
       setShowSuccessMsg(true);
       setTimeout(() => setShowSuccessMsg(false), 2000);
@@ -514,6 +517,13 @@ export default function App() {
       alert("Error removing user: " + error.message);
     }
   };
+
+  // --- User Management Filtering ---
+  const filteredSellerList = useMemo(() => {
+    if (!userMgmtSearch.trim()) return []; // Return empty if no search
+    const term = userMgmtSearch.toLowerCase();
+    return sellerList.filter(s => s.displayName.toLowerCase().includes(term));
+  }, [sellerList, userMgmtSearch]);
 
   // --- Edit Logic (For Admin) ---
 
@@ -660,16 +670,12 @@ export default function App() {
 
       let matchesStatus = true;
       if (statusFilter === 'all') {
-         // "All" now hides cashed_out and pulled_out (unless searched?)
-         // Actually "All" usually means "Active" things.
-         // If it's 'in_transit', it should show in 'all'.
          if (item.status === 'cashed_out' || item.status === 'pulled_out') {
              matchesStatus = false;
          }
       } else if (statusFilter === 'cashed_out') {
          matchesStatus = item.status === 'cashed_out' || item.status === 'pulled_out';
       } else {
-         // strict status match ('dropped', 'claimed', 'in_transit')
          matchesStatus = item.status === statusFilter;
       }
 
@@ -899,35 +905,36 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-                
-                {/* ADMIN HEADER BUTTONS */}
+                {/* NEW: USER MANAGEMENT BUTTON (Admin Only) */}
                 {role === 'admin' && (
-                    <>
-                        {/* NEW DROP BUTTON (MOVED HERE) */}
-                        <button 
-                            onClick={() => setIsFormOpen(true)}
-                            className="flex items-center gap-1 bg-pink-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-700 transition-colors shadow-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span className="hidden sm:inline">New Drop</span>
-                        </button>
+                    <button 
+                        onClick={() => setIsUserMgmtOpen(true)}
+                        className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
+                        title="Manage Users"
+                    >
+                        <Users className="w-5 h-5" />
+                    </button>
+                )}
 
-                        <button 
-                            onClick={() => setIsCashOutModalOpen(true)}
-                            className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
-                        >
-                            <Banknote className="w-4 h-4" />
-                            <span className="hidden sm:inline">Cash Out</span>
-                        </button>
-
-                        <button 
-                            onClick={() => setIsUserMgmtOpen(true)}
-                            className="p-2 rounded-lg text-slate-600 hover:text-purple-700 hover:bg-purple-50 transition-colors"
-                            title="Manage Users"
-                        >
-                            <Users className="w-5 h-5" />
-                        </button>
-                    </>
+                {role === 'admin' && (
+                    <button 
+                        onClick={() => setIsCashOutModalOpen(true)}
+                        className="flex items-center gap-1 bg-purple-800 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-purple-900 transition-colors shadow-sm"
+                    >
+                        <Banknote className="w-4 h-4" />
+                        <span className="hidden sm:inline">Admin Cash Out</span>
+                    </button>
+                )}
+                
+                {/* NEW DROP BUTTON (MOVED HERE) */}
+                {role === 'admin' && (
+                   <button 
+                      onClick={() => setIsFormOpen(true)}
+                      className="flex items-center gap-1 bg-pink-600 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-700 transition-colors shadow-sm"
+                   >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">New Drop</span>
+                   </button>
                 )}
 
                 <button 
@@ -1429,12 +1436,31 @@ export default function App() {
             </div>
 
             <div className="p-6">
-               <div className="text-xs font-semibold text-slate-400 uppercase mb-3">Registered Sellers</div>
+               {/* SEARCH BAR FOR USERS */}
+               <div className="flex items-center gap-4 mb-4">
+                 <div className="relative flex-1">
+                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                   <input 
+                     type="text" 
+                     placeholder="Search user..." 
+                     value={userMgmtSearch}
+                     onChange={(e) => setUserMgmtSearch(e.target.value)}
+                     className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                   />
+                 </div>
+               </div>
+
+               <div className="text-xs font-semibold text-slate-400 uppercase mb-3">
+                  {userMgmtSearch.trim() ? 'Search Results' : 'Type to Search Sellers'}
+               </div>
+               
                <div className="space-y-2">
-                   {sellerList.length === 0 ? (
-                       <div className="text-center py-10 text-slate-400">No sellers found.</div>
+                   {filteredSellerList.length === 0 ? (
+                       <div className="text-center py-10 text-slate-400">
+                          {userMgmtSearch.trim() ? "No matching sellers found." : "Enter a name to manage account."}
+                       </div>
                    ) : (
-                       sellerList.map((seller) => (
+                       filteredSellerList.map((seller) => (
                            <div 
                              key={seller.id} 
                              className="w-full flex justify-between items-center p-4 bg-white hover:bg-pink-50 rounded-xl border border-pink-100 transition-colors group"
@@ -1579,7 +1605,7 @@ export default function App() {
                         </thead>
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
-                                <tr key={item.id}>
+                                <tr key={item.id} className="break-inside-avoid">
                                     <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td>
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
                                     <td className="py-2 text-slate-500 text-xs">{item.location}</td>
@@ -1592,7 +1618,7 @@ export default function App() {
                             ))}
                         </tbody>
                         <tfoot>
-                            <tr className="border-t-2 border-slate-800">
+                            <tr className="border-t-2 border-slate-800 break-inside-avoid">
                                 <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
