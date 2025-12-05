@@ -783,7 +783,7 @@ export default function App() {
               </button>
               <button onClick={() => setLoginMode('buyer')} className="w-full flex items-center p-4 bg-white border-2 border-purple-100 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group">
                 <div className="bg-purple-100 p-2 rounded-lg mr-4 group-hover:bg-purple-200"><User className="text-purple-600 w-6 h-6" /></div>
-                <div className="text-left"><div className="font-bold text-slate-700">Buyer Login</div><div className="text-xs text-slate-400">Check for your packages</div></div>
+                <div className="text-left"><div className="font-bold text-slate-700">Parcel Tracker</div><div className="text-xs text-slate-400">Check for your packages</div></div>
                 <ChevronRight className="ml-auto text-slate-300 group-hover:text-purple-500" />
               </button>
               <button onClick={() => setLoginMode('admin')} className="w-full flex items-center p-4 bg-white border-2 border-slate-100 rounded-xl hover:border-slate-800 hover:bg-slate-50 transition-all group">
