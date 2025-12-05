@@ -48,7 +48,8 @@ import {
   ChevronLeft, 
   ArrowUpDown, 
   ListFilter,
-  FileDown 
+  FileDown,
+  Printer 
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -109,7 +110,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('all'); 
   const [isFormOpen, setIsFormOpen] = useState(false);
   
-  // PAGINATION & SORTING STATE (MAIN LIST)
+  // PAGINATION & SORTING STATE
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [sortBy, setSortBy] = useState('date'); 
@@ -317,6 +318,10 @@ export default function App() {
     window.URL.revokeObjectURL(url);
   };
 
+  // PRINT RECEIPT HANDLER
+  const handlePrintReceipt = () => {
+    window.print();
+  };
 
   // --- Login Handlers ---
 
@@ -535,7 +540,7 @@ export default function App() {
     }
   };
 
-  // --- Admin Cash Out Logic (UPDATED) ---
+  // --- Admin Cash Out Logic ---
 
   const sellersWithBalance = useMemo(() => {
     if (role !== 'admin') return [];
@@ -552,10 +557,7 @@ export default function App() {
         // Parse values
         const price = parseFloat(item.price.replace(/[^0-9.]/g, '')) || 0;
         const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
-
-        // Logic Update:
-        // If Paid Externally: Total = Fee ONLY
-        // If Not Paid Externally: Total = Price + Fee
+        
         if (item.isPaidExternally) {
             groups[seller].total += fee;
         } else {
@@ -715,15 +717,6 @@ export default function App() {
         viewableItems = []; 
     }
     
-    // Calculate Balance for Sellers (Claimed + Not Paid Externally)
-    // If Paid Externally, we still add the FEE if applicable, but usually that fee is paid by buyer to center?
-    // Wait, if Paid Externally, the Seller already has the price.
-    // Does the Seller get the FEE? Usually Fee is for the Center.
-    // Assuming "Available for Cash Out" means money the Center owes the Seller.
-    // If Seller collected Price outside, Center owes nothing (unless Center collected Fee).
-    // Based on Admin Cash Out Logic:
-    // If Paid Externally -> Center owes Fee to Seller (assuming Center collected it).
-    
     let availableBalance = 0;
     if (role === 'seller') {
         availableBalance = viewableItems.reduce((sum, item) => {
@@ -732,9 +725,9 @@ export default function App() {
                  const fee = parseFloat(item.transferFee?.replace(/[^0-9.]/g, '') || '0') || 0;
                  
                  if (item.isPaidExternally) {
-                     return sum + fee;
+                    return sum + fee;
                  } else {
-                     return sum + price + fee;
+                    return sum + price + fee;
                  }
             }
             return sum;
@@ -833,9 +826,57 @@ export default function App() {
   // --- MAIN APP RENDER ---
   return (
     <div className="min-h-screen bg-fuchsia-50 pb-20">
+      
+      {/* STYLES FOR PRINTING (FIXED: HIDES EVERYTHING EXCEPT RECEIPT) */}
+      <style>{`
+        @media print {
+          /* 1. Hide all main UI elements explicitly */
+          header, main, .fixed {
+            display: none !important;
+          }
+          
+          /* 2. Ensure the root and body have no constraints */
+          html, body, #root, .min-h-screen {
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          /* 3. Show ONLY the receipt */
+          #printable-receipt {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 20px !important;
+            visibility: visible !important;
+          }
+          
+          #printable-receipt * {
+            visibility: visible !important;
+          }
+
+          /* 4. Table Page Break Logic */
+          tr {
+             break-inside: avoid; 
+             page-break-inside: avoid;
+          }
+          
+          thead {
+            display: table-header-group;
+          }
+
+          @page {
+            size: auto;
+            margin: 10mm;
+          }
+        }
+      `}</style>
 
       {/* Navbar */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
+      <header className="bg-white shadow-sm sticky top-0 z-10 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-2">
@@ -882,7 +923,70 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* PRINT ONLY INVOICE (Hidden in normal view) */}
+      <div id="printable-receipt" className="hidden print:block p-8">
+        {selectedSellerForCashout && (
+            <div>
+                <div className="text-center mb-8">
+                    <h1 className="text-2xl font-bold text-purple-800">{APP_NAME}</h1>
+                    <p className="text-sm text-pink-600">Cash Out Receipt / Invoice</p>
+                    <p className="text-xs text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p>
+                </div>
+
+                <div className="bg-fuchsia-50 p-4 rounded-lg border border-pink-100 mb-6">
+                    <div className="flex justify-between mb-2">
+                        <span className="text-slate-500">Seller Name:</span>
+                        <span className="font-bold text-lg text-slate-800">{selectedSellerForCashout.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                            <span className="text-slate-500">Transaction ID:</span>
+                            <span className="font-mono text-xs text-purple-600">{selectedSellerForCashout.items[0]?.id.substring(0,8).toUpperCase()}...</span>
+                    </div>
+                </div>
+
+                <table className="w-full mb-6 text-sm">
+                    <thead>
+                        <tr className="border-b-2 border-pink-100 text-left">
+                            <th className="py-2 text-slate-500">Date</th>
+                            <th className="py-2 text-slate-500">Item</th>
+                            <th className="py-2 text-slate-500">Location</th>
+                            <th className="py-2 text-slate-500">Buyer</th>
+                            <th className="py-2 text-slate-500 text-right">Fee</th>
+                            <th className="py-2 text-slate-500 text-right">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-pink-50">
+                        {selectedSellerForCashout.items.map(item => (
+                            <tr key={item.id} className="break-inside-avoid">
+                                <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td>
+                                <td className="py-2 text-slate-700">{item.itemName}</td>
+                                <td className="py-2 text-slate-500 text-xs">{item.location}</td>
+                                <td className="py-2 text-slate-500">{item.buyerName}</td>
+                                <td className="py-2 text-right text-pink-500 text-xs">{item.transferFee}</td>
+                                <td className="py-2 text-right font-medium text-purple-700">
+                                    {item.isPaidExternally ? <span className="text-gray-400 line-through decoration-double">({item.price})</span> : `₱${item.price}`}
+                                </td>
+                            </tr>
+                        ))}
+                        {/* MOVED TOTAL TO TBODY for cleaner multi-page printing */}
+                        <tr className="border-t-2 border-slate-800 break-inside-avoid">
+                            <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
+                            <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div className="mt-12 pt-8 border-t border-slate-300 hidden print:block">
+                    <div className="flex justify-between text-xs text-slate-500">
+                        <div className="text-center w-1/3"><div className="h-8 border-b border-slate-300 mb-1"></div>Seller Signature</div>
+                        <div className="text-center w-1/3"><div className="h-8 border-b border-slate-300 mb-1"></div>Admin Signature</div>
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 print:hidden">
         
         {/* Quick Actions / Stats */}
         {role !== 'buyer' && (
@@ -902,16 +1006,12 @@ export default function App() {
             </div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-pink-100"><div className="text-pink-500 text-xs font-semibold uppercase">Ready to Pickup</div><div className="text-2xl font-bold text-pink-600">{stats.dropped}</div></div>
             <div className="bg-white p-4 rounded-xl shadow-sm border border-purple-100"><div className="text-purple-500 text-xs font-semibold uppercase">Claimed (Unpaid)</div><div className="text-2xl font-bold text-purple-600">{stats.claimed}</div></div>
-            
-            {/* NEW DROP BUTTON: ADMIN ONLY NOW */}
             {role === 'admin' && (
               <div className="bg-pink-50 p-4 rounded-xl shadow-sm border border-pink-200 flex items-center justify-between">
                 <div><div className="text-pink-700 text-xs font-semibold uppercase">New Drop</div><div className="text-xs text-pink-600">Add package</div></div>
                 <button onClick={() => setIsFormOpen(true)} className="bg-pink-600 text-white p-2 rounded-lg hover:bg-pink-700 transition-colors shadow-lg shadow-pink-200"><Plus className="w-5 h-5" /></button>
               </div>
             )}
-
-            {/* SELLER BALANCE CARD */}
             {role === 'seller' && (
               <div className="bg-emerald-50 p-4 rounded-xl shadow-sm border border-emerald-200">
                 <div className="text-emerald-700 text-xs font-semibold uppercase">Available for Cash Out</div>
@@ -1322,7 +1422,7 @@ export default function App() {
       {isCashOutModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl my-8">
-            <div className="p-6 border-b border-pink-100 flex justify-between items-center">
+            <div className="p-6 border-b border-pink-100 flex justify-between items-center print:hidden">
                 <div>
                     <h3 className="text-xl font-bold text-slate-800">Admin Cash Out</h3>
                     <p className="text-sm text-slate-500">{selectedSellerForCashout ? `Invoice for ${selectedSellerForCashout.name}` : 'Select a seller to pay out'}</p>
@@ -1392,7 +1492,7 @@ export default function App() {
             )}
 
             {selectedSellerForCashout && (
-                <div className="p-8">
+                <div className="p-8" id="printable-receipt">
                     <div className="text-center mb-8">
                         <h1 className="text-2xl font-bold text-purple-800">{APP_NAME}</h1>
                         <p className="text-sm text-pink-600">Cash Out Receipt / Invoice</p>
@@ -1423,7 +1523,7 @@ export default function App() {
                         </thead>
                         <tbody className="divide-y divide-pink-50">
                             {selectedSellerForCashout.items.map(item => (
-                                <tr key={item.id}>
+                                <tr key={item.id} className="break-inside-avoid">
                                     <td className="py-2 text-slate-500 text-xs">{formatDate(item.createdAt)}</td>
                                     <td className="py-2 text-slate-700">{item.itemName}</td>
                                     <td className="py-2 text-slate-500 text-xs">{item.location}</td>
@@ -1434,17 +1534,29 @@ export default function App() {
                                     </td>
                                 </tr>
                             ))}
-                        </tbody>
-                        <tfoot>
-                            <tr className="border-t-2 border-slate-800">
+                            {/* Total Payout Row moved here to ensure it only prints once at the end */}
+                            <tr className="border-t-2 border-slate-800 break-inside-avoid">
                                 <td colSpan="5" className="py-4 font-bold text-slate-800 text-right pr-4">TOTAL PAYOUT:</td>
                                 <td className="py-4 font-bold text-xl text-purple-600 text-right">₱{selectedSellerForCashout.total}</td>
                             </tr>
-                        </tfoot>
+                        </tbody>
                     </table>
 
-                    <div className="flex gap-3 justify-end mt-6 border-t border-pink-100 pt-6">
+                    <div className="mt-12 pt-8 border-t border-slate-300 hidden print:block">
+                        <div className="flex justify-between text-xs text-slate-500">
+                            <div className="text-center w-1/3"><div className="h-8 border-b border-slate-300 mb-1"></div>Seller Signature</div>
+                            <div className="text-center w-1/3"><div className="h-8 border-b border-slate-300 mb-1"></div>Admin Signature</div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 justify-end mt-6 border-t border-pink-100 pt-6 print:hidden">
                          <button onClick={() => setSelectedSellerForCashout(null)} className="px-4 py-2 text-slate-500 hover:text-pink-600">Back</button>
+                         <button 
+                            onClick={handlePrintReceipt}
+                            className="flex items-center gap-2 px-4 py-2 bg-white border border-pink-200 text-pink-700 rounded-lg hover:bg-pink-50 shadow-sm"
+                         >
+                            <Printer className="w-4 h-4" /> Print
+                         </button>
                          <button 
                             onClick={confirmCashOutForSeller} 
                             disabled={isProcessing}
